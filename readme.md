@@ -270,15 +270,16 @@ Config via env vars: `STACKS_API_URL`, `CONTRACT_ADDRESS`, `DISTRIBUTOR_CONTRACT
 
 **Not yet done:** end-to-end testing against a running devnet (only unit-tested so far, no network); the Node script prints an error if the network name is wrong or the key is missing but hasn't been exercised against a live broadcast yet.
 
-### Phase 6 — Frontend
+### Phase 6 — Frontend (done — `frontend/`)
 
-Build against devnet/testnet contract addresses from `web/lib/contracts.ts`, switching a single `NETWORK` env var to move between devnet → testnet → mainnet later.
+Built as a single guided, plain-language dashboard rather than a jargon-heavy DeFi UI — "sBTC"/"stBTC"/"ve-lock"/"epoch" mostly stay out of the copy in favor of "your Bitcoin-backed balance," "boost," "lock." Network (`devnet`/`testnet`/`mainnet`) and the deployer address switch via `NEXT_PUBLIC_NETWORK` / `NEXT_PUBLIC_CONTRACT_DEPLOYER` in `frontend/lib/network.ts` — no other file needs to change between environments.
 
-- Wallet connect: `@stacks/connect`'s `connect()` / `request()` flow for Leather and Xverse.
-- Deposit flow: build the sBTC peg-in tx, then the `bitmax-vault.clar` `deposit` call, surfacing the real Bitcoin confirmation delay honestly (don't fake instant confirmation in the UI).
-- STX-lock UI: amount + duration picker → calls `ve-stx-lock.clar` `lock-stx`.
-- Dashboard: read-only calls to `get-balance` and `get-weight`, computed boost multiplier displayed alongside plain vs. boosted APY.
-- Redeem flow: calls `bitmax-vault.clar` `redeem`, then shows a "use this on Zest" deep link to `app.zestprotocol.com` once the user holds real stBTC in their wallet — no BitMax-side contract call for the borrow step itself (section 5).
+- **`lib/wallet.tsx`** — connect/disconnect state via `@stacks/connect`. One real subtlety: `getLocalStorage()` deliberately strips the BTC public key before persisting it (it's sensitive-ish), so it's captured only from a *live* `connect()` result, not restored on page reload. Practical effect: a returning user only needs to reconnect once before using the "bring in Bitcoin" step; every other step only needs the STX address, which does survive a reload.
+- **`lib/vault.ts`** — thin wrappers over `bitmax-vault`/`ve-stx-lock` contract calls (`deposit`, `redeem`, `redeem-to-sbtc`, `lock-stx`, `register`) plus read-only balance/weight/lock lookups.
+- **`lib/format.ts`** — BTC↔sats and STX↔µSTX conversion, and human lock-duration presets ("2 weeks" … "2 years") mapped to the block counts `ve-stx-lock.clar` actually expects — nobody should have to think in block heights.
+- **`app/page.tsx`** — numbered-step dashboard: (1) bring in Bitcoin via `lib/sbtc.ts`'s real peg-in flow, honestly stating the ~20 minute Bitcoin confirmation wait; (2) start earning via `bitmax-vault.deposit`; (3) optional boost via `ve-stx-lock.lock-stx` + `bitmax-boost-distributor.register`; plus a balance card and a "move to my wallet, then use on Zest" redeem card with a plain external link — matching the section 1 design decision that BitMax never integrates the borrow step itself.
+
+Verified: `tsc --noEmit` clean, `next build` succeeds, dev server serves a 200. **Not yet done:** in-browser click-through testing (needs a wallet extension in a real browser profile — not exercised here), and the testnet/mainnet `NEXT_PUBLIC_CONTRACT_DEPLOYER` values are unset until those are actually deployed.
 
 ---
 
