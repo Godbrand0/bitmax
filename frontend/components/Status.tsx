@@ -1,11 +1,17 @@
 export type StatusKind = "info" | "error" | "success";
 
+const STYLES: Record<StatusKind, { border: string; bg: string; text: string; icon: string }> = {
+  info: { border: "border-border", bg: "bg-surface-muted", text: "text-muted", icon: "ℹ" },
+  success: { border: "border-success", bg: "bg-success-soft", text: "text-success", icon: "✓" },
+  error: { border: "border-danger", bg: "bg-danger-soft", text: "text-danger", icon: "!" },
+};
+
 export function Status({ text, kind }: { text: string; kind: StatusKind }) {
-  const color =
-    kind === "error"
-      ? "text-red-600 dark:text-red-400"
-      : kind === "success"
-        ? "text-green-600 dark:text-green-400"
-        : "text-zinc-500 dark:text-zinc-400";
-  return <p className={`mt-3 text-sm ${color}`}>{text}</p>;
+  const s = STYLES[kind];
+  return (
+    <div className={`mt-3 flex items-start gap-2.5 rounded-xl border-l-4 ${s.border} ${s.bg} px-4 py-3`}>
+      <span className={`mt-0.5 text-sm font-bold ${s.text}`}>{s.icon}</span>
+      <p className={`text-sm leading-relaxed ${s.text}`}>{text}</p>
+    </div>
+  );
 }

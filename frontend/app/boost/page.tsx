@@ -5,7 +5,7 @@ import { useWallet } from "@/lib/wallet";
 import { getLock, getLockWeight, lockStx, registerForBoost, unlockStx } from "@/lib/vault";
 import { getBlockHeight } from "@/lib/chain";
 import { LOCK_DURATION_PRESETS, stxToUstx } from "@/lib/format";
-import { Card, PrimaryButton, TextInput } from "@/components/Card";
+import { Card, PrimaryButton, Select, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
 
 export default function BoostPage() {
@@ -15,8 +15,8 @@ export default function BoostPage() {
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
 
   const [lockAmount, setLockAmount] = useState("");
-  const [lockPreset, setLockPreset] = useState<(typeof LOCK_DURATION_PRESETS)[number]>(
-    LOCK_DURATION_PRESETS[0]
+  const [lockPresetLabel, setLockPresetLabel] = useState<(typeof LOCK_DURATION_PRESETS)[number]["label"]>(
+    LOCK_DURATION_PRESETS[0].label
   );
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: StatusKind } | null>(null);
@@ -44,9 +44,11 @@ export default function BoostPage() {
   async function handleLock() {
     setBusy("lock");
     try {
+      const preset =
+        LOCK_DURATION_PRESETS.find((p) => p.label === lockPresetLabel) ?? LOCK_DURATION_PRESETS[0];
       const amountUstx = stxToUstx(lockAmount);
       const height = await getBlockHeight();
-      await lockStx(amountUstx, BigInt(height) + BigInt(lockPreset.blocks));
+      await lockStx(amountUstx, BigInt(height) + BigInt(preset.blocks));
       await registerForBoost();
       setMessage({ text: "Locked! Your boost applies from the next rewards round.", kind: "success" });
       await refresh();
@@ -74,7 +76,7 @@ export default function BoostPage() {
   const isUnlockable = isLocked && currentHeight !== null && BigInt(currentHeight) >= lock.unlockHeight;
 
   return (
-    <div className="flex flex-1 flex-col items-center bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
           <Card title="Boost">
@@ -83,7 +85,7 @@ export default function BoostPage() {
         ) : (
           <div className="flex flex-col gap-6">
             <Card title="Boosting is what BitMax is about">
-              <p className="text-zinc-500 dark:text-zinc-400">
+              <p className="text-muted">
                 Everyone earns staking rewards on their Bitcoin-backed balance. Locking STX shifts a
                 bigger share of the whole reward pool toward you - the longer you lock, the bigger your
                 share. This isn&apos;t a side feature: it&apos;s the mechanism that makes BitMax different
@@ -92,22 +94,22 @@ export default function BoostPage() {
             </Card>
 
             <Card title="Your current boost">
-              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{weight.toString()}</p>
-              <p className="mt-1 text-zinc-500 dark:text-zinc-400">boost weight</p>
+              <p className="text-3xl font-bold tabular-nums text-foreground">{weight.toString()}</p>
+              <p className="mt-1 text-muted">boost weight</p>
               {isLocked && (
-                <div className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                <div className="mt-5 rounded-xl bg-surface-muted p-4 text-sm text-foreground/90">
                   <p>
                     You have <strong>{(Number(lock.amount) / 1_000_000).toString()} STX</strong> locked,
                     unlocking at block {lock.unlockHeight.toString()}.
                   </p>
                   {isUnlockable ? (
-                    <PrimaryButton disabled={busy === "unlock"} onClick={handleUnlock}>
-                      {busy === "unlock" ? "Unlocking..." : "Unlock STX"}
-                    </PrimaryButton>
+                    <div className="mt-3">
+                      <PrimaryButton disabled={busy === "unlock"} onClick={handleUnlock}>
+                        {busy === "unlock" ? "Unlocking..." : "Unlock STX"}
+                      </PrimaryButton>
+                    </div>
                   ) : (
-                    <p className="mt-2 text-zinc-500 dark:text-zinc-400">
-                      Not unlockable yet - locks can&apos;t be ended early.
-                    </p>
+                    <p className="mt-2 text-muted">Not unlockable yet - locks can&apos;t be ended early.</p>
                   )}
                 </div>
               )}
@@ -115,28 +117,17 @@ export default function BoostPage() {
 
             {!isLocked && (
               <Card title="Lock STX to boost your rewards">
-                <p className="mb-3 text-zinc-500 dark:text-zinc-400">
+                <p className="mb-3 text-muted">
                   Choose how much STX to lock and for how long. You get the STX back once the lock ends -
                   the boost is a bonus on your rewards, not a fee.
                 </p>
                 <div className="flex flex-col gap-3">
                   <TextInput value={lockAmount} onChange={setLockAmount} placeholder="Amount in STX, e.g. 100" />
-                  <select
-                    value={lockPreset.label}
-                    onChange={(e) =>
-                      setLockPreset(
-                        LOCK_DURATION_PRESETS.find((p) => p.label === e.target.value) ??
-                          LOCK_DURATION_PRESETS[0]
-                      )
-                    }
-                    className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-zinc-900 outline-none focus:border-orange-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
-                  >
-                    {LOCK_DURATION_PRESETS.map((p) => (
-                      <option key={p.label} value={p.label}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    value={lockPresetLabel}
+                    onChange={setLockPresetLabel}
+                    options={LOCK_DURATION_PRESETS.map((p) => ({ value: p.label, label: p.label }))}
+                  />
                   <PrimaryButton disabled={busy === "lock" || !lockAmount} onClick={handleLock}>
                     {busy === "lock" ? "Locking..." : "Lock STX to Boost"}
                   </PrimaryButton>

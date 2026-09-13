@@ -13,8 +13,15 @@ import {
 } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
-import { Card, PrimaryButton, TextInput } from "@/components/Card";
+import { Badge, Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status } from "@/components/Status";
+
+const HERO_STEPS = [
+  { title: "Bring in your Bitcoin", detail: "It becomes a Bitcoin-backed balance you can use on Stacks." },
+  { title: "Start earning", detail: "Your balance earns staking rewards automatically." },
+  { title: "Boost your rewards", detail: "Lock STX for a bigger share - this is the core of what BitMax does." },
+  { title: "Borrow against it", detail: "Use your growing balance as collateral on Zest, right in this app." },
+];
 
 export default function Home() {
   const wallet = useWallet();
@@ -121,64 +128,74 @@ export default function Home() {
   const boosted = weight > 0n;
 
   return (
-    <div className="flex flex-1 flex-col items-center bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
-          <Card title="Welcome to BitMax">
-            <p className="mb-2">
-              BitMax turns idle Bitcoin into a growing balance, boosted by locking STX. Here&apos;s the
-              whole idea:
-            </p>
-            <ol className="ml-4 list-decimal space-y-1">
-              <li>Bring in your Bitcoin - it becomes a Bitcoin-backed balance you can use on Stacks.</li>
-              <li>It starts earning staking rewards automatically.</li>
-              <li>
-                <strong>Lock STX to boost your share of the rewards</strong> - this is the core of what
-                BitMax does, not a side feature.
-              </li>
-              <li>Use your growing balance to borrow against it on Zest, right from this app.</li>
-            </ol>
-            <p className="mt-4 text-zinc-500 dark:text-zinc-400">
-              Connect a wallet (Leather or Xverse) above to get started.
-            </p>
-          </Card>
+          <div className="flex flex-col gap-8">
+            <div className="text-center">
+              <Badge>Live on Stacks</Badge>
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Grow your Bitcoin, simply.
+              </h1>
+              <p className="mx-auto mt-3 max-w-md text-muted">
+                Deposit Bitcoin, earn staking rewards automatically, and boost your share by locking
+                STX - all from one dashboard.
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={wallet.connect}
+                  disabled={wallet.connecting}
+                  className="rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {wallet.connecting ? "Connecting..." : "Connect Wallet to Start"}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 sm:p-7">
+              <ol className="flex flex-col gap-5">
+                {HERO_STEPS.map((step, i) => (
+                  <li key={step.title} className="flex gap-4">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{step.title}</p>
+                      <p className="text-sm text-muted">{step.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-6">
-            {networkError && (
-              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                {networkError}
-              </div>
-            )}
+            {networkError && <Status text={networkError} kind="error" />}
+
             <Card title="Your balance">
-              <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+              <p className="text-3xl font-bold tabular-nums text-foreground">
                 {vaultBalance === null ? "..." : `${satsToBtc(vaultBalance)} BTC`}
               </p>
-              <p className="mt-1 text-zinc-500 dark:text-zinc-400">currently growing in BitMax</p>
+              <p className="mt-1 text-muted">currently growing in BitMax</p>
 
-              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    You put in
-                  </p>
-                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
-                    {vaultPrincipal === null ? "..." : `${satsToBtc(vaultPrincipal)} BTC`}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    You&apos;ve earned
-                  </p>
-                  <p className="font-semibold text-green-600 dark:text-green-400">
-                    {yieldEarned === null ? "..." : `+${satsToBtc(yieldEarned)} BTC`}
-                  </p>
-                </div>
+              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-5">
+                <StatTile
+                  label="You put in"
+                  value={vaultPrincipal === null ? "..." : `${satsToBtc(vaultPrincipal)} BTC`}
+                />
+                <StatTile
+                  label="You've earned"
+                  tone="positive"
+                  value={yieldEarned === null ? "..." : `+${satsToBtc(yieldEarned)} BTC`}
+                />
               </div>
 
-              <div className="mt-4 flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-950">
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              <div className="mt-5 flex items-center justify-between gap-3 rounded-xl bg-surface-muted px-4 py-3">
+                <p className="text-sm text-foreground/90">
                   {boosted ? (
                     <>
-                      🚀 Your rewards are <strong>boosted</strong> - you&apos;re locking STX for a bigger share.
+                      🚀 Your rewards are <strong>boosted</strong> - you&apos;re locking STX for a bigger
+                      share.
                     </>
                   ) : (
                     <>You&apos;re earning at the base rate. Boosting can grow this faster.</>
@@ -186,7 +203,7 @@ export default function Home() {
                 </p>
                 <Link
                   href="/boost"
-                  className="shrink-0 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
+                  className="shrink-0 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover"
                 >
                   {boosted ? "Manage boost" : "Boost now"}
                 </Link>
@@ -194,7 +211,7 @@ export default function Home() {
             </Card>
 
             <Card title="Bring in your Bitcoin" step={1}>
-              <p className="mb-3 text-zinc-500 dark:text-zinc-400">
+              <p className="mb-3 text-muted">
                 Send Bitcoin from your wallet. This takes about 20 minutes to confirm on the Bitcoin
                 network - that&apos;s real Bitcoin security, not a delay we add.
               </p>
@@ -208,7 +225,7 @@ export default function Home() {
             </Card>
 
             <Card title="Start earning" step={2}>
-              <p className="mb-3 text-zinc-500 dark:text-zinc-400">
+              <p className="mb-3 text-muted">
                 Once your Bitcoin-backed balance has arrived, put it to work here to start earning
                 staking rewards.
               </p>
@@ -229,7 +246,7 @@ export default function Home() {
             </Card>
 
             <Card title="Use your balance elsewhere">
-              <p className="mb-3 text-zinc-500 dark:text-zinc-400">
+              <p className="mb-3 text-muted">
                 Move some of your growing balance to a regular wallet balance you can use anywhere -
                 including to borrow against it on Zest, without losing your rewards.
               </p>
@@ -241,7 +258,7 @@ export default function Home() {
                 {messages["redeem"] && <Status {...messages["redeem"]!} />}
                 <Link
                   href="/borrow"
-                  className="text-center text-sm font-medium text-orange-600 hover:underline dark:text-orange-400"
+                  className="text-center text-sm font-medium text-brand hover:underline"
                 >
                   Borrow against it on Zest &rarr;
                 </Link>

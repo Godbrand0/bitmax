@@ -49,7 +49,7 @@ export default function BorrowPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
           <Card title="Borrow">
@@ -57,7 +57,7 @@ export default function BorrowPage() {
           </Card>
         ) : !ZEST_AVAILABLE ? (
           <Card title="Borrow against your balance">
-            <p className="text-zinc-500 dark:text-zinc-400">
+            <p className="text-muted">
               This calls Zest Protocol&apos;s real lending market directly - no middle contract, no
               leaving BitMax. Zest only runs on Stacks <strong>mainnet</strong> right now, though, and
               this app is currently pointed at <strong>{NETWORK_NAME}</strong>. Once BitMax itself is
@@ -67,11 +67,11 @@ export default function BorrowPage() {
         ) : (
           <div className="flex flex-col gap-6">
             <Card title="Borrow against your balance">
-              <p className="text-zinc-500 dark:text-zinc-400">
+              <p className="text-muted">
                 This talks directly to Zest Protocol&apos;s own lending contract, signed by your wallet -
                 BitMax never holds or routes these funds. Supply the stBTC you moved out in{" "}
-                <span className="font-medium">Use your balance elsewhere</span>, then borrow USDC against
-                it without giving up your rewards.
+                <span className="font-medium text-foreground">Use your balance elsewhere</span>, then
+                borrow USDC against it without giving up your rewards.
               </p>
             </Card>
 
@@ -93,7 +93,7 @@ export default function BorrowPage() {
                 </PrimaryButton>
               </div>
               {messages["borrow"] && <Status {...messages["borrow"]!} />}
-              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-3 text-xs text-muted">
                 Borrowing too much against too little collateral risks liquidation - Zest enforces this
                 on-chain and will reject an unsafe borrow.
               </p>
