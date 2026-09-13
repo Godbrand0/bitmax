@@ -257,19 +257,18 @@ Clarity has no native map/list enumeration, so depositors must self-`register` i
 
 **A real gotcha worth flagging for anyone continuing this build:** the Clarinet JS SDK's Vitest integration snapshots and rolls back simnet state *per individual `it()` block*, not once per test file. Tests that assume state carries over from a previous `it` (e.g. "close an epoch, then in the next test try to close it again too soon") will silently start from a fresh chain and fail in confusing ways — every test that depends on prior mutations needs to set that state up itself, from scratch, inside itself.
 
-### Phase 5 — Rust keeper
+### Phase 5 — Rust keeper (done — `keeper/`)
 
-```bash
-cd keeper
-cargo new bitmax-keeper && cd bitmax-keeper
-cargo add tokio --features full
-cargo add reqwest --features json
-cargo add serde --features derive
-```
+A deliberate split, not a pure-Rust implementation:
 
-- `chain.rs`: poll the Hiro Stacks Blockchain API for current block height and `bitmax-boost-distributor` epoch state (read-only call).
-- `epoch.rs`: when `current-height >= next-epoch-height`, submit a `close-epoch` transaction (any wallet can pay for this — permissionless, same pattern as the StackSats keeper-trigger).
-- Run this against devnet first (`clarinet devnet start` gives you a local Stacks node + faucet), then testnet.
+- **`src/chain.rs`** (Rust) — polls a Stacks node's `/v2/info` for current block height and `bitmax-boost-distributor`'s `get-last-epoch-close-height` via `/v2/contracts/call-read`, hand-decoding the one Clarity type it needs (a raw `uint`) from the hex response. Small and fully unit-tested (8 tests, no network needed).
+- **`src/epoch.rs`** (Rust) — `should_close_epoch`, a pure function mirroring the contract's own gate exactly (never closed yet, or `EPOCH-LENGTH` blocks have passed). Unit-tested in isolation.
+- **`src/submit.rs`** (Rust) — spawns a Node subprocess to actually sign and broadcast the transaction.
+- **`scripts/submit-close-epoch.mjs`** (Node, `@stacks/transactions`) — **why this isn't pure Rust:** the only Rust option for building/signing Stacks transactions, the `stacks-rs` crate, hasn't been updated since March 2024. Transaction signing is exactly the kind of security-sensitive code that shouldn't be hand-rolled (wire format, nonce/fee handling, secp256k1 signing) when a maintained, actively-used library already does it correctly — so it's delegated to `@stacks/transactions`, the same library already verified working in `frontend/lib/sbtc.ts`.
+
+Config via env vars: `STACKS_API_URL`, `CONTRACT_ADDRESS`, `DISTRIBUTOR_CONTRACT_NAME`, `NETWORK`, `EPOCH_LENGTH_BLOCKS`, `POLL_INTERVAL_SECS`, `SUBMIT_SCRIPT`; the Node script separately needs `KEEPER_PRIVATE_KEY`. Run against devnet first (`clarinet devnet start` gives a local Stacks node + faucet), then testnet.
+
+**Not yet done:** end-to-end testing against a running devnet (only unit-tested so far, no network); the Node script prints an error if the network name is wrong or the key is missing but hasn't been exercised against a live broadcast yet.
 
 ### Phase 6 — Frontend
 
