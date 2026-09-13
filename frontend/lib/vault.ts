@@ -86,6 +86,19 @@ export async function getVaultBalance(address: string): Promise<bigint> {
   return readUint(cv);
 }
 
+/** How much of getVaultBalance is still "money put in" - see bitmax-vault.clar's get-principal. */
+export async function getVaultPrincipal(address: string): Promise<bigint> {
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress: CONTRACT_DEPLOYER,
+    contractName: CONTRACTS.vault,
+    functionName: "get-principal",
+    functionArgs: [Cl.principal(address)],
+    senderAddress: address,
+    network: NETWORK,
+  });
+  return readUint(cv);
+}
+
 export async function getLockWeight(address: string): Promise<bigint> {
   const cv = await fetchCallReadOnlyFunction({
     contractAddress: CONTRACT_DEPLOYER,

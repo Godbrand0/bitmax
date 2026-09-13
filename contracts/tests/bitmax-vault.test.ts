@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { Cl } from "@stacks/transactions";
 
 const accounts = simnet.getAccounts();
-const wallets = [1, 2, 3, 4, 5, 6].map((n) => accounts.get(`wallet_${n}`)!);
+const wallets = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => accounts.get(`wallet_${n}`)!);
 const deployer = accounts.get("deployer")!;
 
 const VAULT = "bitmax-vault";
@@ -154,6 +154,70 @@ describe("bitmax-vault", () => {
       wallet
     );
     expect(result).toBeErr(Cl.uint(500));
+  });
+
+  it("get-principal tracks money in, separate from balance", () => {
+    const wallet = wallets[6];
+    mintSbtc(wallet, 10_000);
+    simnet.callPublicFn(VAULT, "deposit", [Cl.uint(10_000)], wallet);
+
+    const principal = simnet.callReadOnlyFn(
+      VAULT,
+      "get-principal",
+      [Cl.principal(wallet)],
+      wallet
+    );
+    expect(principal.result).toBeUint(10_000);
+
+    // a boost credit (simulating what bitmax-boost-distributor does) grows
+    // the balance without growing principal - that gap is "yield earned".
+    // Also mint the matching real stBTC into the vault (accrue-yield),
+    // exactly as the real distributor flow requires - otherwise this
+    // credits an internal ledger entry with no real backing, and the
+    // later redeem would correctly fail for insufficient real stBTC.
+    simnet.callPublicFn(
+      "mock-stacking-dao",
+      "accrue-yield",
+      [Cl.uint(500), Cl.principal(`${deployer}.${VAULT}`)],
+      deployer
+    );
+    simnet.callPublicFn(
+      VAULT,
+      "set-boost-distributor",
+      [Cl.principal(deployer)],
+      deployer
+    );
+    simnet.callPublicFn(
+      VAULT,
+      "increase-balance",
+      [Cl.principal(wallet), Cl.uint(500)],
+      deployer
+    );
+
+    const balanceAfterYield = simnet.callReadOnlyFn(
+      VAULT,
+      "get-balance",
+      [Cl.principal(wallet)],
+      wallet
+    );
+    const principalAfterYield = simnet.callReadOnlyFn(
+      VAULT,
+      "get-principal",
+      [Cl.principal(wallet)],
+      wallet
+    );
+    expect(balanceAfterYield.result).toBeUint(10_500);
+    expect(principalAfterYield.result).toBeUint(10_000); // unchanged
+
+    // redeeming draws principal down too, so it never exceeds the balance
+    simnet.callPublicFn(VAULT, "redeem", [Cl.uint(10_500)], wallet);
+    const principalAfterFullRedeem = simnet.callReadOnlyFn(
+      VAULT,
+      "get-principal",
+      [Cl.principal(wallet)],
+      wallet
+    );
+    expect(principalAfterFullRedeem.result).toBeUint(0);
   });
 
   it("set-boost-distributor is owner-only and one-shot", () => {

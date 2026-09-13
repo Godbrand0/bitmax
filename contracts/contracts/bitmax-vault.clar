@@ -26,9 +26,16 @@
 
 ;; data maps
 
+;; `amount` is the depositor's full boosted stBTC entitlement; `principal`
+;; is how much of that is still "money they put in" (only ever moved by
+;; deposit/redeem). The gap between them - `amount - principal` - is
+;; exactly the yield/boost the frontend shows as "earned so far".
 (define-map balances
   { owner: principal }
-  { amount: uint }
+  {
+    amount: uint,
+    principal: uint,
+  }
 )
 
 ;; public functions
@@ -47,11 +54,16 @@
 ;; (the mock stakes 1:1; a real integration may not, and this call site is
 ;; exactly where an exchange-rate read would be inserted).
 (define-public (deposit (amount uint))
-  (let ((current (default-to u0 (get amount (map-get? balances { owner: tx-sender })))))
+  (let (
+      (existing (default-to { amount: u0, principal: u0 } (map-get? balances { owner: tx-sender })))
+    )
     (asserts! (> amount u0) ERR-ZERO-AMOUNT)
     (try! (contract-call? .mock-sbtc transfer amount tx-sender (as-contract tx-sender) none))
     (try! (as-contract (contract-call? .mock-stacking-dao stake amount)))
-    (map-set balances { owner: tx-sender } { amount: (+ current amount) })
+    (map-set balances { owner: tx-sender } {
+      amount: (+ (get amount existing) amount),
+      principal: (+ (get principal existing) amount),
+    })
     (ok true)
   )
 )
@@ -63,11 +75,15 @@
 (define-public (redeem (amount uint))
   (let (
       (caller tx-sender)
-      (current (default-to u0 (get amount (map-get? balances { owner: tx-sender }))))
+      (existing (default-to { amount: u0, principal: u0 } (map-get? balances { owner: tx-sender })))
+      (current (get amount existing))
     )
     (asserts! (> amount u0) ERR-ZERO-AMOUNT)
     (asserts! (>= current amount) ERR-INSUFFICIENT-BALANCE)
-    (map-set balances { owner: caller } { amount: (- current amount) })
+    (map-set balances { owner: caller } {
+      amount: (- current amount),
+      principal: (saturating-sub (get principal existing) amount),
+    })
     (as-contract (contract-call? .mock-stbtc transfer amount tx-sender caller none))
   )
 )
@@ -79,11 +95,15 @@
 (define-public (redeem-to-sbtc (amount uint))
   (let (
       (caller tx-sender)
-      (current (default-to u0 (get amount (map-get? balances { owner: tx-sender }))))
+      (existing (default-to { amount: u0, principal: u0 } (map-get? balances { owner: tx-sender })))
+      (current (get amount existing))
     )
     (asserts! (> amount u0) ERR-ZERO-AMOUNT)
     (asserts! (>= current amount) ERR-INSUFFICIENT-BALANCE)
-    (map-set balances { owner: caller } { amount: (- current amount) })
+    (map-set balances { owner: caller } {
+      amount: (- current amount),
+      principal: (saturating-sub (get principal existing) amount),
+    })
     (try! (as-contract (contract-call? .mock-stacking-dao unstake amount)))
     (as-contract (contract-call? .mock-sbtc transfer amount tx-sender caller none))
   )
@@ -97,9 +117,9 @@
     (who principal)
     (amount uint)
   )
-  (let ((current (default-to u0 (get amount (map-get? balances { owner: who })))))
+  (let ((existing (default-to { amount: u0, principal: u0 } (map-get? balances { owner: who }))))
     (asserts! (is-eq (some contract-caller) (var-get boost-distributor)) ERR-NOT-AUTHORIZED)
-    (map-set balances { owner: who } { amount: (+ current amount) })
+    (map-set balances { owner: who } (merge existing { amount: (+ (get amount existing) amount) }))
     (ok true)
   )
 )
@@ -108,10 +128,10 @@
     (who principal)
     (amount uint)
   )
-  (let ((current (default-to u0 (get amount (map-get? balances { owner: who })))))
+  (let ((existing (default-to { amount: u0, principal: u0 } (map-get? balances { owner: who }))))
     (asserts! (is-eq (some contract-caller) (var-get boost-distributor)) ERR-NOT-AUTHORIZED)
-    (asserts! (>= current amount) ERR-INSUFFICIENT-BALANCE)
-    (map-set balances { owner: who } { amount: (- current amount) })
+    (asserts! (>= (get amount existing) amount) ERR-INSUFFICIENT-BALANCE)
+    (map-set balances { owner: who } (merge existing { amount: (- (get amount existing) amount) }))
     (ok true)
   )
 )
@@ -122,6 +142,25 @@
   (default-to u0 (get amount (map-get? balances { owner: who })))
 )
 
+;; How much of get-balance is still "money the depositor put in", as
+;; opposed to yield/boost credited since. get-balance minus this is what
+;; the frontend shows as earned.
+(define-read-only (get-principal (who principal))
+  (default-to u0 (get principal (map-get? balances { owner: who })))
+)
+
 (define-read-only (get-boost-distributor)
   (var-get boost-distributor)
+)
+
+;; private functions
+
+(define-private (saturating-sub
+    (a uint)
+    (b uint)
+  )
+  (if (>= a b)
+    (- a b)
+    u0
+  )
 )

@@ -99,18 +99,30 @@ The key architectural decision from section 1: **BitMax never custodies stBTC pa
 | **sBTC** | Entry asset (BTC peg-in) and exit asset (peg-out) | **Correction from earlier drafts:** `stacks-network/sbtc-docs` on GitHub is archived. Current docs live under `docs.stacks.co/more-guides/sbtc/`. Deposit is **not** a Clarity contract call — the depositor sends BTC to a one-time P2TR address (built via the `sbtc` npm package's `buildSbtcDepositAddress`) and then notifies the Emily coordination API (`notifySbtc`) so signers sweep and mint (~20 min). Withdrawal **is** a contract call: `.sbtc-withdrawal`'s `initiate-withdrawal-request` (mainnet deployer `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4`), locking `amount + max-fee` sBTC, resolving in ~6 Bitcoin confirmations. Implemented in `frontend/lib/sbtc.ts`, verified against the `sbtc` package's own `.d.ts` files (v0.3.2), not just doc prose. |
 | **StackingDAO (stBTC)** | Staking leg — sBTC deposited here becomes stBTC | App: `app.stackingdao.com`. stBTC completed audit and targeted an August 2026 mainnet launch as the "canonical BTC LST" — **confirm mainnet contract address and mint/redeem interface directly from StackingDAO before building; do not assume it matches the stSTX contract pattern.** |
 | **Own ve-lock contract** | STX boost mechanism | New contract, no external protocol dependency |
-| **Zest Protocol** | Where a user takes their (boosted) stBTC to borrow USDCx | **Not a BitMax contract integration.** Zest already supports sBTC/STX/stSTX as collateral against USDCx/USDh at up to 70% LTV (sBTC) or 50% LTV (others), with an E-Mode up to 80% LTV for correlated-asset pairs. stBTC-as-general-collateral is not yet confirmed listed outside Zest's own Stacks Vaults — verify before advertising this as a one-click in-dashboard flow; worst case it's "redeem your stBTC, then go use Zest's own app," which requires no BitMax-side integration at all. |
+| **Zest Protocol** | Where a user borrows USDC against their (redeemed) stBTC | **Update: now a real, embedded integration, not a link-out.** Implemented in `frontend/lib/zest.ts` calling Zest's actual live mainnet contract, `SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7.v0-8-market`, directly (`supply-collateral-add` then `borrow`) — verified against Zest's real deployed source (`github.com/Zest-Protocol/zest-v2-contracts`, fetched directly), not docs prose. Still no BitMax-side contract in this path — the user's wallet signs a call straight to Zest's contract. **Zest v2 is mainnet-only** (no known devnet/testnet deployment), so this only functions once BitMax itself runs on mainnet; the UI gates on this (`ZEST_AVAILABLE`) rather than let a user submit a doomed transaction. See section 6a below for the details and what's still simplified. |
 
 ---
 
 ## 6. Contracts to write
 
-- **`bitmax-vault.clar`** — holds each depositor's sBTC-in-flight and stBTC-out balance; calls StackingDAO's stake/unstake functions; issues an internal accounting balance (not a transferable token) representing "stBTC earned, boost-adjusted."
+- **`bitmax-vault.clar`** — holds each depositor's sBTC-in-flight and stBTC-out balance; calls StackingDAO's stake/unstake functions; issues an internal accounting balance (not a transferable token) representing "stBTC earned, boost-adjusted." Tracks **`amount`** (full boosted entitlement) and **`principal`** (money actually deposited, untouched by boost credits) separately per depositor — the gap between them is exactly the "yield earned" the dashboard shows. Redemption draws principal down too (saturating at zero), so principal never exceeds the current balance.
 - **`ve-stx-lock.clar`** — locks raw STX for a chosen duration; issues a non-transferable, time-decaying weight per depositor (Curve-style veToken pattern: `weight = amount_locked * (unlock_block - current_block) / max_lock_duration`).
 - **`bitmax-boost-distributor.clar`** — at each epoch, reads total stBTC yield accrued in `bitmax-vault.clar` and each depositor's `ve-stx-lock` weight, computes and credits each depositor's boosted share (a zero-sum redistribution: boosted depositors get more than flat pro-rata, unboosted depositors get less).
 - **Redeem path** (a function on `bitmax-vault.clar`, not a separate contract) — lets a depositor redeem their current boosted stBTC balance to a real, freely-transferable stBTC balance in their own wallet at any time, so they can independently supply it to Zest or anywhere else stBTC is accepted.
 
 No leverage contract, no Bitflow-routing contract — both dropped along with the leverage-loop feature (section 1).
+
+### 6a. Zest integration details (`frontend/lib/zest.ts`)
+
+Confirmed directly from Zest's own deployed source (`github.com/Zest-Protocol/zest-v2-contracts`, `mainnet/contracts/market/v0-8-market.clar` and `.../registry/v0-assets.clar`), not docs summaries, which turned out to be incomplete for this:
+
+- **Contract:** `SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7.v0-8-market` (mainnet only).
+- **Supplying collateral:** `supply-collateral-add(ft, amount, min-shares, price-feeds)` — `ft` is a SIP-010 trait reference to the *raw underlying* asset (real stBTC), not one of Zest's internal `z`-prefixed vault-share tokens.
+- **Borrowing:** `borrow(ft, amount, receiver, price-feeds)` — same trait pattern, for the asset being borrowed (USDC, asset id `6`).
+- **Asset contract principals are resolved live**, never hardcoded: `resolveAssetContract()` calls `v0-assets.lookup(id)` on Zest's own registry. A wrong guessed token address in a lending-protocol call is exactly the kind of mistake not worth risking.
+- **`price-feeds: none`** is passed deliberately — verified in Zest's source that this is a valid path (`load-price-feeds` returns `(ok { feeds: (list) })` for `none`, not an error), relying on Zest's already-cached on-chain price rather than this app also integrating Pyth Lazer's off-chain price-update service. Good enough for an MVP; a production integration should also push fresh feeds for guaranteed liveness.
+- **Mainnet-only:** Zest v2 has no known devnet/testnet deployment. The frontend gates the Borrow page on `NETWORK_NAME === "mainnet"` rather than let a user submit a transaction against a contract that doesn't exist on their current network.
+- **Not yet done:** live end-to-end testing against mainnet (needs a funded mainnet wallet with real stBTC); `min-shares` slippage tolerance (1%) is a placeholder, not tuned against Zest's actual observed exchange-rate variance.
 
 ---
 
@@ -239,10 +251,10 @@ Blocked on StackingDAO's stBTC mainnet contract shipping (target: August 2026 �
 - `deposit (amount uint)` — pulls sBTC from caller, stakes it via `mock-stacking-dao`, credits caller's internal balance 1:1 with the resulting stBTC (the exchange-rate read belongs at this call site once the real StackingDAO contract isn't 1:1).
 - `redeem (amount uint)` — debits the caller's internal balance, transfers real stBTC (already held by the vault) to the caller's wallet. This is the point BitMax's custody ends — see section 1.
 - `redeem-to-sbtc (amount uint)` — same, but unstakes back to sBTC first, for a user headed toward a full peg-out via `frontend/lib/sbtc.ts`'s `initiateWithdrawal`.
-- `increase-balance` / `decrease-balance (who, amount)` — callable only by whatever principal `set-boost-distributor` (owner-only, one-shot) has been pointed at; this is the hook Phase 4's `bitmax-boost-distributor.clar` will call.
-- `get-balance (who principal)` — read-only.
+- `increase-balance` / `decrease-balance (who, amount)` — callable only by whatever principal `set-boost-distributor` (owner-only, one-shot) has been pointed at; this is the hook Phase 4's `bitmax-boost-distributor.clar` will call. Only ever touch `amount`, never `principal` — this is exactly what makes the balance-minus-principal gap mean "yield/boost earned."
+- `get-balance (who principal)` / `get-principal (who principal)` — read-only. The frontend's balance card shows `get-principal` as "you put in" and `get-balance - get-principal` as "you've earned."
 
-17/17 Vitest tests passing (`ve-stx-lock` + `bitmax-vault`), `clarinet check` clean. Swap the three mocks for StackingDAO's real contract principal once it's live on testnet — `bitmax-vault.clar`'s own logic shouldn't need to change, only the `contract-call?` targets.
+18/18 Vitest tests passing across `ve-stx-lock` + `bitmax-vault` (including a dedicated principal-vs-yield test), `clarinet check` clean. Swap the three mocks for StackingDAO's real contract principal once it's live on testnet — `bitmax-vault.clar`'s own logic shouldn't need to change, only the `contract-call?` targets.
 
 ### Phase 4 — `bitmax-boost-distributor.clar` (done)
 
@@ -253,7 +265,7 @@ Clarity has no native map/list enumeration, so depositors must self-`register` i
 - Integer-division rounding means the sum credited each epoch can fall a few units short of the true total (never over) — the dust is simply left uncredited in the vault rather than redistributed, a deliberate simplicity tradeoff.
 - `BOOST-FACTOR` (currently `u1`, meaning up to a 2x multiplier for someone holding 100% of all locked weight alone) is a tunable placeholder constant, not derived from any external precedent — expect to revisit once real usage data exists.
 
-4 tests covering: idempotent registration, flat pro-rata when no one has locked STX, epoch-too-soon rejection, and a boosted-vs-unboosted depositor split. All 21 tests across the three contracts pass; `clarinet check` clean on all 7.
+4 tests covering: idempotent registration, flat pro-rata when no one has locked STX, epoch-too-soon rejection, and a boosted-vs-unboosted depositor split. All 22 tests across the three contracts pass; `clarinet check` clean on all 7.
 
 **A real gotcha worth flagging for anyone continuing this build:** the Clarinet JS SDK's Vitest integration snapshots and rolls back simnet state *per individual `it()` block*, not once per test file. Tests that assume state carries over from a previous `it` (e.g. "close an epoch, then in the next test try to close it again too soon") will silently start from a fresh chain and fail in confusing ways — every test that depends on prior mutations needs to set that state up itself, from scratch, inside itself.
 
@@ -270,16 +282,20 @@ Config via env vars: `STACKS_API_URL`, `CONTRACT_ADDRESS`, `DISTRIBUTOR_CONTRACT
 
 **Not yet done:** end-to-end testing against a running devnet (only unit-tested so far, no network); the Node script prints an error if the network name is wrong or the key is missing but hasn't been exercised against a live broadcast yet.
 
-### Phase 6 — Frontend (done — `frontend/`)
+### Phase 6 — Frontend (done — `frontend/`, multi-page with embedded Zest borrow)
 
-Built as a single guided, plain-language dashboard rather than a jargon-heavy DeFi UI — "sBTC"/"stBTC"/"ve-lock"/"epoch" mostly stay out of the copy in favor of "your Bitcoin-backed balance," "boost," "lock." Network (`devnet`/`testnet`/`mainnet`) and the deployer address switch via `NEXT_PUBLIC_NETWORK` / `NEXT_PUBLIC_CONTRACT_DEPLOYER` in `frontend/lib/network.ts` — no other file needs to change between environments.
+Built as a guided, plain-language app rather than a jargon-heavy DeFi UI — "sBTC"/"stBTC"/"ve-lock"/"epoch" mostly stay out of the copy in favor of "your Bitcoin-backed balance," "boost," "lock." Network (`devnet`/`testnet`/`mainnet`) and the deployer address switch via `NEXT_PUBLIC_NETWORK` / `NEXT_PUBLIC_CONTRACT_DEPLOYER` in `frontend/lib/network.ts` — no other file needs to change between environments.
 
-- **`lib/wallet.tsx`** — connect/disconnect state via `@stacks/connect`. One real subtlety: `getLocalStorage()` deliberately strips the BTC public key before persisting it (it's sensitive-ish), so it's captured only from a *live* `connect()` result, not restored on page reload. Practical effect: a returning user only needs to reconnect once before using the "bring in Bitcoin" step; every other step only needs the STX address, which does survive a reload.
-- **`lib/vault.ts`** — thin wrappers over `bitmax-vault`/`ve-stx-lock` contract calls (`deposit`, `redeem`, `redeem-to-sbtc`, `lock-stx`, `register`) plus read-only balance/weight/lock lookups.
+Three routes behind a shared top nav (`components/Nav.tsx`, rendered once in `app/layout.tsx`), reflecting that **boosting is core to the product, not an optional add-on** — it gets its own dedicated page and the dashboard copy frames it that way rather than labeling it "(optional)":
+
+- **`app/page.tsx` (Dashboard)** — balance card broken into three numbers, not one: total balance, **"you put in"** (`get-principal`), and **"you've earned"** (balance minus principal) — plus a boost-status banner ("🚀 boosted" or "earning at base rate") linking to the Boost page. Below that: bring in Bitcoin (real sBTC peg-in via `lib/sbtc.ts`, honestly stating the ~20 minute Bitcoin confirmation wait), start earning (`bitmax-vault.deposit`), and move-to-my-wallet (`redeem`) with a link into Borrow.
+- **`app/boost/page.tsx`** — its own page: current boost weight, active lock detail with unlock height, lock/unlock actions. Framed as "the mechanism that makes BitMax different," not a side feature.
+- **`app/borrow/page.tsx`** — **embedded Zest borrowing, not a redirect.** Supply stBTC as collateral and borrow USDC by calling Zest's real mainnet contract directly (`lib/zest.ts`, see section 6a) from inside BitMax; gated behind `ZEST_AVAILABLE` (mainnet-only) with a plain explanation when the app is pointed at devnet/testnet instead of a broken/silent failure.
+- **`lib/wallet.tsx`** — connect/disconnect via `@stacks/connect`. One real subtlety: `getLocalStorage()` deliberately strips the BTC public key before persisting it, so it's captured only from a *live* `connect()` result, not restored on page reload — a returning user just needs to reconnect once before using "bring in Bitcoin"; every other step only needs the STX address, which does survive a reload.
+- **`lib/vault.ts`** / **`lib/zest.ts`** — thin wrappers over the vault/lock/distributor contract calls and the embedded Zest calls, respectively.
 - **`lib/format.ts`** — BTC↔sats and STX↔µSTX conversion, and human lock-duration presets ("2 weeks" … "2 years") mapped to the block counts `ve-stx-lock.clar` actually expects — nobody should have to think in block heights.
-- **`app/page.tsx`** — numbered-step dashboard: (1) bring in Bitcoin via `lib/sbtc.ts`'s real peg-in flow, honestly stating the ~20 minute Bitcoin confirmation wait; (2) start earning via `bitmax-vault.deposit`; (3) optional boost via `ve-stx-lock.lock-stx` + `bitmax-boost-distributor.register`; plus a balance card and a "move to my wallet, then use on Zest" redeem card with a plain external link — matching the section 1 design decision that BitMax never integrates the borrow step itself.
 
-Verified: `tsc --noEmit` clean, `next build` succeeds, dev server serves a 200. **Not yet done:** in-browser click-through testing (needs a wallet extension in a real browser profile — not exercised here), and the testnet/mainnet `NEXT_PUBLIC_CONTRACT_DEPLOYER` values are unset until those are actually deployed.
+Verified: `tsc --noEmit` clean, `next build` succeeds across all three routes, dev server serves a 200; a real bug was caught and fixed during manual testing (an unhandled promise rejection when no Stacks node is reachable — `refresh()` now fails gracefully with a plain-language banner instead of crashing). **Not yet done:** in-browser click-through testing of the boost/borrow pages specifically (only the dashboard got a manual pass so far), and live testing of the Zest integration against mainnet with a funded wallet.
 
 ---
 
