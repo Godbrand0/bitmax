@@ -1,4 +1,8 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/Card";
+import { useWallet } from "@/lib/wallet";
 
 function IconCircle({ children }: { children: React.ReactNode }) {
   return (
@@ -104,13 +108,30 @@ const FAQ = [
   },
 ];
 
-export function Landing({
-  onConnect,
-  connecting,
-}: {
-  onConnect: () => void;
-  connecting: boolean;
-}) {
+export function Landing() {
+  const wallet = useWallet();
+  const router = useRouter();
+
+  async function handleCta() {
+    if (wallet.address) {
+      router.push("/app");
+      return;
+    }
+    try {
+      await wallet.connect();
+      router.push("/app");
+    } catch {
+      // user closed the wallet prompt or it failed - stay on the landing
+      // page rather than navigate anywhere, so they can just try again.
+    }
+  }
+
+  const ctaLabel = wallet.connecting
+    ? "Connecting..."
+    : wallet.address
+      ? "Go to Dashboard"
+      : "Connect Wallet to Start";
+
   return (
     <div className="flex flex-col gap-16 pb-8">
       {/* Hero */}
@@ -126,11 +147,11 @@ export function Landing({
         </p>
         <div className="mt-6 flex flex-col items-center gap-3">
           <button
-            onClick={onConnect}
-            disabled={connecting}
+            onClick={handleCta}
+            disabled={wallet.connecting}
             className="rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {connecting ? "Connecting..." : "Connect Wallet to Start"}
+            {ctaLabel}
           </button>
           <a href="#how-it-works" className="text-xs font-medium text-muted hover:text-foreground">
             See how it works &darr;
@@ -235,14 +256,16 @@ export function Landing({
       <div className="rounded-2xl bg-brand-soft p-6 text-center sm:p-8">
         <h2 className="text-lg font-bold text-foreground">Ready to put your Bitcoin to work?</h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-          Connect a Stacks wallet (Leather or Xverse) to bring in Bitcoin and start earning.
+          {wallet.address
+            ? "Your wallet is connected - head to your dashboard to get started."
+            : "Connect a Stacks wallet (Leather or Xverse) to bring in Bitcoin and start earning."}
         </p>
         <button
-          onClick={onConnect}
-          disabled={connecting}
+          onClick={handleCta}
+          disabled={wallet.connecting}
           className="mt-4 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {connecting ? "Connecting..." : "Connect Wallet"}
+          {ctaLabel}
         </button>
       </div>
 

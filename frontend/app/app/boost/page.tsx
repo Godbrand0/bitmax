@@ -7,6 +7,7 @@ import { getBlockHeight } from "@/lib/chain";
 import { LOCK_DURATION_PRESETS, stxToUstx } from "@/lib/format";
 import { Card, PrimaryButton, Select, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
+import { ConnectPrompt } from "@/components/ConnectPrompt";
 
 export default function BoostPage() {
   const wallet = useWallet();
@@ -79,9 +80,7 @@ export default function BoostPage() {
     <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
-          <Card title="Boost">
-            <p>Connect your wallet to boost your rewards.</p>
-          </Card>
+          <ConnectPrompt text="Connect your wallet to boost your rewards." />
         ) : (
           <div className="flex flex-col gap-6">
             <Card title="Boosting is what BitMax is about">

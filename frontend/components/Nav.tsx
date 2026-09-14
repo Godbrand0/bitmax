@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { useWallet } from "@/lib/wallet";
 
 const LINKS = [
-  { href: "/boost", label: "Boost" },
-  { href: "/borrow", label: "Borrow" },
+  { href: "/app", label: "Dashboard" },
+  { href: "/app/boost", label: "Boost" },
+  { href: "/app/borrow", label: "Borrow" },
 ];
 
 function Logo() {

@@ -7,6 +7,7 @@ import { btcToSats } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
 import { Card, PrimaryButton, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
+import { ConnectPrompt } from "@/components/ConnectPrompt";
 
 export default function BorrowPage() {
   const wallet = useWallet();
@@ -52,9 +53,7 @@ export default function BorrowPage() {
     <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
-          <Card title="Borrow">
-            <p>Connect your wallet to borrow against your balance.</p>
-          </Card>
+          <ConnectPrompt text="Connect your wallet to borrow against your balance." />
         ) : !ZEST_AVAILABLE ? (
           <Card title="Borrow against your balance">
             <p className="text-muted">
