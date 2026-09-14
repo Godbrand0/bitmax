@@ -13,9 +13,9 @@
 // NETWORK_NAME is "mainnet"; callers should gate the UI accordingly rather
 // than let a user submit a doomed transaction on devnet/testnet.
 
-import { request } from "@stacks/connect";
 import { Cl, fetchCallReadOnlyFunction } from "@stacks/transactions";
 import { NETWORK, NETWORK_NAME } from "./network";
+import { submitSponsored } from "./sponsor";
 
 const ZEST_DEPLOYER = "SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7";
 const ZEST_MARKET = "v0-8-market" as const;
@@ -90,22 +90,20 @@ export async function supplyStbtcCollateral(
   senderAddress: string
 ) {
   const stbtcContract = await resolveAssetContract(ZEST_ASSET_IDS.stBTC, senderAddress);
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: zestContract(ZEST_MARKET),
     functionName: "supply-collateral-add",
     functionArgs: [Cl.principal(stbtcContract), Cl.uint(amountSats), Cl.uint(minShares), Cl.none()],
-    network: NETWORK_NAME,
   });
 }
 
 /** Borrows `amountUsdc` against whatever collateral the caller already has supplied on Zest. */
 export async function borrowUsdc(amountUsdc: bigint, senderAddress: string) {
   const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, senderAddress);
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: zestContract(ZEST_MARKET),
     functionName: "borrow",
     functionArgs: [Cl.principal(usdcContract), Cl.uint(amountUsdc), Cl.none(), Cl.none()],
-    network: NETWORK_NAME,
   });
 }
 

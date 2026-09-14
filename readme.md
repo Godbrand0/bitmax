@@ -311,6 +311,16 @@ Verified: `tsc --noEmit` clean, `next build` succeeds across all four routes, de
 
 `/` originally swapped between this landing content and the dashboard based on wallet-connection state — same route, two faces. That meant a connected user never actually saw a distinct landing page, which defeats the point of having one. Restructured so `/` is *always* the landing page (public, no wallet needed) and the actual app lives under `/app`, `/app/boost`, `/app/borrow` — the standard split for a dApp: marketing page stays reachable regardless of wallet state, the gated app is a separate area. The nav logo links to `/`; the landing page's CTA button reads "Connect Wallet to Start" and redirects to `/app` on success, or "Go to Dashboard" (no reconnect needed) if already connected. Each `/app/*` page falls back to a shared `ConnectPrompt` component if visited without a wallet connected, rather than assuming one.
 
+### 6b. Gas sponsorship (`lib/sponsor.ts` + `app/api/sponsor/route.ts`)
+
+Every write in the app — `deposit`, `redeem`, `redeem-to-sbtc`, `lock-stx`, `unlock-stx`, `register`, and both Zest calls (`supply-collateral-add`, `borrow`) — goes through `submitSponsored()` instead of calling `@stacks/connect`'s `request("stx_callContract", ...)` directly, so a user never needs STX in their wallet just to pay a transaction fee.
+
+- **How it works:** the call passes `sponsored: true`. Per `@stacks/connect`'s own types, a sponsored request has the wallet *sign but not broadcast* the transaction (it can't yet — it isn't valid until a sponsor co-signs and pays the fee) and return the raw signed tx instead of a txid. `lib/sponsor.ts` POSTs that raw tx to this app's own `/api/sponsor` route.
+- **`app/api/sponsor/route.ts`** (server-only) holds the actual sponsor private key, deserializes the transaction, and — critically — **checks it's a contract-call into one of BitMax's own contracts or Zest's `v0-8-market`** before sponsoring anything. Without that allowlist this endpoint would be a free transaction-broadcasting service for anyone, paid for out of the sponsor wallet; verified by hand-crafting a call to an arbitrary contract and confirming it's rejected with 403 before any signing happens.
+- **`SPONSOR_PRIVATE_KEY`** is deliberately not `NEXT_PUBLIC_`-prefixed so it never reaches the browser bundle. See `.env.example`. Whatever account it corresponds to needs to be funded with STX — every sponsored transaction spends real STX from it.
+- **No unsponsored fallback.** If `SPONSOR_PRIVATE_KEY` isn't set, the endpoint returns a clear 503 and every write in the app fails with an explicit "gas sponsorship isn't configured" message, rather than silently trying something else. That was a deliberate choice, not an oversight — the alternative (silently falling back to asking the user to pay their own fee) would contradict the whole point of sponsoring "all transactions," as asked.
+- **Not yet done:** rate-limiting / per-account spend caps on the sponsor endpoint. The contract allowlist stops arbitrary abuse, but a malicious user could still spam legitimate-looking calls (e.g. tiny repeated deposits) to drain the sponsor wallet faster than intended — worth adding before a real funded key goes live on mainnet.
+
 ---
 
 ## 13. Testing strategy

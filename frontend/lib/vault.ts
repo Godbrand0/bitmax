@@ -1,9 +1,9 @@
 // Thin wrappers around bitmax-vault / ve-stx-lock contract calls, kept
 // separate from the UI so components stay focused on presentation.
 
-import { request } from "@stacks/connect";
 import { Cl, fetchCallReadOnlyFunction, type ClarityValue } from "@stacks/transactions";
 import { CONTRACT_DEPLOYER, CONTRACTS, NETWORK, NETWORK_NAME } from "./network";
+import { submitSponsored } from "./sponsor";
 
 function contract(name: string): `${string}.${string}` {
   return `${CONTRACT_DEPLOYER}.${name}` as `${string}.${string}`;
@@ -19,56 +19,50 @@ function readUint(cv: ClarityValue): bigint {
 // --- writes (wallet-signed) ---------------------------------------------
 
 export async function depositSbtc(amountSats: bigint) {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.vault),
     functionName: "deposit",
     functionArgs: [Cl.uint(amountSats)],
-    network: NETWORK_NAME,
   });
 }
 
 export async function redeemStbtc(amountSats: bigint) {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.vault),
     functionName: "redeem",
     functionArgs: [Cl.uint(amountSats)],
-    network: NETWORK_NAME,
   });
 }
 
 export async function redeemToSbtc(amountSats: bigint) {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.vault),
     functionName: "redeem-to-sbtc",
     functionArgs: [Cl.uint(amountSats)],
-    network: NETWORK_NAME,
   });
 }
 
 export async function lockStx(amountUstx: bigint, unlockHeight: bigint) {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.veLock),
     functionName: "lock-stx",
     functionArgs: [Cl.uint(amountUstx), Cl.uint(unlockHeight)],
-    network: NETWORK_NAME,
   });
 }
 
 export async function unlockStx() {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.veLock),
     functionName: "unlock-stx",
     functionArgs: [],
-    network: NETWORK_NAME,
   });
 }
 
 export async function registerForBoost() {
-  return request("stx_callContract", {
+  return submitSponsored({
     contract: contract(CONTRACTS.distributor),
     functionName: "register",
     functionArgs: [],
-    network: NETWORK_NAME,
   });
 }
 
