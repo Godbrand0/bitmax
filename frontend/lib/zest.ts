@@ -20,6 +20,8 @@ import { NETWORK, NETWORK_NAME } from "./network";
 const ZEST_DEPLOYER = "SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7";
 const ZEST_MARKET = "v0-8-market" as const;
 const ZEST_ASSETS_REGISTRY = "v0-assets" as const;
+const ZEST_MARKET_VAULT = "v0-market-vault" as const;
+const ZEST_STBTC_ZTOKEN_VAULT = "v0-vault-stbtc" as const;
 
 // Canonical asset ids, read directly from v0-8-market.clar's own constants
 // (STX u0, sBTC u2, stSTX u4, USDC u6, USDH u8, stSTXbtc u10, stBTC u12) -
@@ -29,6 +31,12 @@ export const ZEST_ASSET_IDS = {
   stBTC: 12,
   USDC: 6,
 } as const;
+
+// The "z"-prefixed id is what collateral is actually *stored* under -
+// supply-collateral-add wraps raw stBTC into zstBTC shares via
+// v0-vault-stbtc before calling collateral-add, so a user's on-chain
+// collateral position is keyed by this id, not stBTC's own id 12.
+const ZEST_ZSTBTC_ASSET_ID = 13;
 
 function zestContract(name: string): `${string}.${string}` {
   return `${ZEST_DEPLOYER}.${name}` as `${string}.${string}`;
@@ -130,4 +138,73 @@ export async function getBtcUsdPrice(): Promise<number> {
 export function estimateBorrowableUsdc(stbtcSats: bigint, btcUsdPrice: number): number {
   const stbtcBtc = Number(stbtcSats) / 100_000_000;
   return stbtcBtc * btcUsdPrice * ESTIMATED_LTV;
+}
+
+// --- real, on-chain supplied-collateral read ------------------------------
+//
+// Unlike "available to borrow," this part IS a real read, not a guess:
+// v0-market-vault exposes resolve-safe (principal -> internal account id,
+// cleanly erroring - not panicking - for an account that's never touched
+// the market) and get-collateral (id, asset -> raw stored amount), and
+// v0-vault-stbtc exposes convert-to-assets (zstBTC shares -> underlying
+// stBTC). Chaining these gives the user's actual supplied stBTC, not an
+// echo of whatever they've typed into a form.
+
+async function getZestAccountId(account: string, senderAddress: string): Promise<number | null> {
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress: ZEST_DEPLOYER,
+    contractName: ZEST_MARKET_VAULT,
+    functionName: "resolve-safe",
+    functionArgs: [Cl.principal(account)],
+    senderAddress,
+    network: NETWORK,
+  });
+  if (cv.type !== "ok") return null; // untracked account - never supplied/borrowed
+  const tuple = cv.value;
+  if (tuple.type !== "tuple") return null;
+  const idCv = tuple.value.id;
+  if (idCv.type !== "uint") return null;
+  return Number(idCv.value);
+}
+
+/**
+ * The caller's real supplied stBTC collateral on Zest, in sats. Returns 0n
+ * for an account with no Zest position at all, or one that's never
+ * supplied this specific asset - get-collateral panics on a missing map
+ * entry (a real quirk of Zest's contract, not a bug here), so that case is
+ * caught and treated as zero rather than surfaced as an error.
+ */
+export async function getSuppliedStbtc(account: string): Promise<bigint> {
+  const accountId = await getZestAccountId(account, account);
+  if (accountId === null) return 0n;
+
+  let shares: bigint;
+  try {
+    const cv = await fetchCallReadOnlyFunction({
+      contractAddress: ZEST_DEPLOYER,
+      contractName: ZEST_MARKET_VAULT,
+      functionName: "get-collateral",
+      functionArgs: [Cl.uint(accountId), Cl.uint(ZEST_ZSTBTC_ASSET_ID)],
+      senderAddress: account,
+      network: NETWORK,
+    });
+    if (cv.type !== "uint") return 0n;
+    shares = BigInt(cv.value);
+  } catch {
+    return 0n;
+  }
+  if (shares === 0n) return 0n;
+
+  const assetsCv = await fetchCallReadOnlyFunction({
+    contractAddress: ZEST_DEPLOYER,
+    contractName: ZEST_STBTC_ZTOKEN_VAULT,
+    functionName: "convert-to-assets",
+    functionArgs: [Cl.uint(shares)],
+    senderAddress: account,
+    network: NETWORK,
+  });
+  if (assetsCv.type !== "ok") return 0n;
+  const inner = assetsCv.value;
+  if (inner.type !== "uint") return 0n;
+  return BigInt(inner.value);
 }

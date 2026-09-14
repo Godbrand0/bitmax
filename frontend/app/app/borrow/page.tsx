@@ -1,18 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@/lib/wallet";
-import { borrowUsdc, estimateBorrowableUsdc, getBtcUsdPrice, supplyStbtcCollateral, ZEST_AVAILABLE } from "@/lib/zest";
+import {
+  borrowUsdc,
+  estimateBorrowableUsdc,
+  getBtcUsdPrice,
+  getSuppliedStbtc,
+  supplyStbtcCollateral,
+  ZEST_AVAILABLE,
+} from "@/lib/zest";
 import { getStbtcBalance } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
-import { Card, PrimaryButton, TextInput } from "@/components/Card";
+import { Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
 import { ConnectPrompt } from "@/components/ConnectPrompt";
 
 export default function BorrowPage() {
   const wallet = useWallet();
   const [stbtcBalance, setStbtcBalance] = useState<bigint | null>(null);
+  const [suppliedStbtc, setSuppliedStbtc] = useState<bigint | null>(null);
   const [btcUsdPrice, setBtcUsdPrice] = useState<number | null>(null);
 
   const [supplyAmount, setSupplyAmount] = useState("");
@@ -23,20 +31,23 @@ export default function BorrowPage() {
   const setMessage = (key: string, text: string, kind: StatusKind) =>
     setMessages((m) => ({ ...m, [key]: { text, kind } }));
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     if (!wallet.address) return;
     getStbtcBalance(wallet.address).then(setStbtcBalance).catch(() => setStbtcBalance(null));
+    getSuppliedStbtc(wallet.address).then(setSuppliedStbtc).catch(() => setSuppliedStbtc(null));
     getBtcUsdPrice().then(setBtcUsdPrice).catch(() => setBtcUsdPrice(null));
   }, [wallet.address]);
 
-  let estimatedUsdc: number | null = null;
-  try {
-    if (supplyAmount && btcUsdPrice !== null) {
-      estimatedUsdc = estimateBorrowableUsdc(btcToSats(supplyAmount), btcUsdPrice);
-    }
-  } catch {
-    estimatedUsdc = null;
-  }
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Real supplied collateral, not a guess from the input field - this is
+  // what actually drives "available to borrow" now.
+  const estimatedUsdc =
+    suppliedStbtc !== null && btcUsdPrice !== null
+      ? estimateBorrowableUsdc(suppliedStbtc, btcUsdPrice)
+      : null;
 
   async function handleSupply() {
     if (!wallet.address) return;
@@ -47,6 +58,7 @@ export default function BorrowPage() {
       const minShares = (amountSats * 99n) / 100n;
       await supplyStbtcCollateral(amountSats, minShares, wallet.address);
       setMessage("supply", "Submitted to Zest! Your stBTC is now supplied as collateral there.", "success");
+      refresh();
     } catch (err) {
       setMessage("supply", err instanceof Error ? err.message : "Something went wrong.", "error");
     } finally {
@@ -61,6 +73,7 @@ export default function BorrowPage() {
       const amountUsdc = BigInt(Math.round(Number(borrowAmount) * 1_000_000));
       await borrowUsdc(amountUsdc, wallet.address);
       setMessage("borrow", "Submitted to Zest! The USDC will arrive in your wallet once confirmed.", "success");
+      refresh();
     } catch (err) {
       setMessage("borrow", err instanceof Error ? err.message : "Something went wrong.", "error");
     } finally {
@@ -84,12 +97,23 @@ export default function BorrowPage() {
           </Card>
         ) : (
           <div className="flex flex-col gap-6">
-            <Card title="Borrow against your balance">
-              <p className="text-muted">
-                This talks directly to Zest Protocol&apos;s own lending contract, signed by your wallet -
-                BitMax never holds or routes these funds. Supply the stBTC you moved out in{" "}
-                <span className="font-medium text-foreground">Use your balance elsewhere</span>, then
-                borrow USDC against it without giving up your rewards.
+            <Card title="Your Zest position">
+              <div className="grid grid-cols-2 gap-4">
+                <StatTile
+                  label="Collateral supplied"
+                  value={suppliedStbtc === null ? "..." : `${satsToBtc(suppliedStbtc)} stBTC`}
+                />
+                <StatTile
+                  label="Estimated available to borrow"
+                  tone="positive"
+                  value={estimatedUsdc === null ? "..." : `~$${estimatedUsdc.toFixed(2)} USDC`}
+                />
+              </div>
+              <p className="mt-4 text-xs text-muted">
+                Collateral supplied is read directly from Zest. The borrow figure is a rough estimate
+                only - based on a live BTC price and a conservative assumed limit, not Zest&apos;s
+                exact on-chain calculation - so use it as a guide for what to type below, not a
+                guarantee. Zest&apos;s own contract enforces the real limit when you actually borrow.
               </p>
             </Card>
 
@@ -112,14 +136,6 @@ export default function BorrowPage() {
                       {busy === "supply" ? "Submitting..." : "Supply to Zest"}
                     </PrimaryButton>
                   </div>
-                  {estimatedUsdc !== null && (
-                    <p className="mt-3 text-xs text-muted">
-                      Estimated up to <span className="font-medium text-foreground">~${estimatedUsdc.toFixed(2)} USDC</span>{" "}
-                      borrowable against this. A rough guide only, based on a live BTC price and a
-                      conservative assumed limit - Zest&apos;s own contract enforces the real limit
-                      when you borrow.
-                    </p>
-                  )}
                   {messages["supply"] && <Status {...messages["supply"]!} />}
                 </Card>
               </div>
@@ -140,6 +156,15 @@ export default function BorrowPage() {
                 </Card>
               </div>
             </div>
+
+            <Card title="Borrow against your balance">
+              <p className="text-muted">
+                This talks directly to Zest Protocol&apos;s own lending contract, signed by your wallet -
+                BitMax never holds or routes these funds. Supply the stBTC you moved out in{" "}
+                <span className="font-medium text-foreground">Use your balance elsewhere</span>, then
+                borrow USDC against it without giving up your rewards.
+              </p>
+            </Card>
           </div>
         )}
       </div>
