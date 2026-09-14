@@ -1,5 +1,5 @@
 allowBuilds:
-  '@reown/appkit': set this to true or false
-  secp256k1: set this to true or false
+  '@reown/appkit': true
+  secp256k1: true
   sharp: false
   unrs-resolver: false
