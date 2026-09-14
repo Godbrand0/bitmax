@@ -68,10 +68,9 @@ This is a meaningfully smaller build than the original spec: no leverage contrac
                                  │ epoch trigger (permissionless)
                                  ▼
                      ┌───────────────────────────┐
-                     │   Rust keeper/epoch service │
+                     │  TypeScript keeper service   │
                      │  polls chain state, calls    │
-                     │  epoch-close, exposes read   │
-                     │  API for dashboard            │
+                     │  epoch-close permissionlessly │
                      └───────────────────────────┘
 
         User's own wallet ──(holds redeemed, boosted stBTC)──► Zest Protocol
@@ -87,7 +86,7 @@ The key architectural decision from section 1: **BitMax never custodies stBTC pa
 
 - **Smart contracts:** Clarity (decidable, no reentrancy by design, native Bitcoin-state reads) + Clarinet for local devnet/testing.
 - **Frontend:** Next.js/React, Stacks.js for wallet connect and contract calls, Stacks Connect for the Leather/Xverse handshake.
-- **Keeper/epoch service:** Rust, polling chain state via the Hiro Stacks Blockchain API, submitting epoch-close transactions permissionlessly (same pattern as the StackSats keeper).
+- **Keeper/epoch service:** TypeScript (`@stacks/transactions`), polling chain state and submitting epoch-close transactions permissionlessly — same language/library as the frontend, no second toolchain.
 - **Wallets supported:** Leather, Xverse.
 
 ---
@@ -145,7 +144,7 @@ Confirmed directly from Zest's own deployed source (`github.com/Zest-Protocol/ze
 3. `bitmax-vault.clar` against StackingDAO's testnet/devnet contracts, once stBTC ships — this is the one integration genuinely blocked on an external mainnet launch.
 4. `bitmax-boost-distributor.clar` — epoch accounting and weighted redistribution.
 5. Frontend: deposit flow, STX-lock UI, boost multiplier display, dashboard, redeem flow, "borrow on Zest" deep link.
-6. Rust keeper service for epoch triggers.
+6. TypeScript keeper service for epoch triggers.
 
 ---
 
@@ -161,29 +160,32 @@ Confirmed directly from Zest's own deployed source (`github.com/Zest-Protocol/ze
 
 ```
 bitmax/
-├── contracts/                  # Clarinet project
+├── contracts/                        # Clarinet project
 │   ├── Clarinet.toml
 │   ├── contracts/
+│   │   ├── sip-010-trait.clar
+│   │   ├── mock-sbtc.clar            # test doubles standing in for
+│   │   ├── mock-stbtc.clar           # StackingDAO ahead of its own
+│   │   ├── mock-stacking-dao.clar    # mainnet launch (see Phase 3)
 │   │   ├── ve-stx-lock.clar
 │   │   ├── bitmax-vault.clar
 │   │   └── bitmax-boost-distributor.clar
-│   ├── tests/                  # Clarinet SDK (Vitest) unit + integration tests
-│   │   ├── ve-stx-lock.test.ts
-│   │   ├── bitmax-vault.test.ts
-│   │   └── bitmax-boost-distributor.test.ts
-│   └── settings/                # Devnet/testnet/mainnet deployment configs
-├── keeper/                      # Rust epoch-trigger service
-│   ├── Cargo.toml
+│   ├── tests/                        # Clarinet SDK (Vitest) unit + integration tests
+│   └── settings/                     # Devnet/testnet/mainnet deployment configs
+├── keeper/                           # TypeScript epoch-trigger service
 │   └── src/
-│       ├── main.rs
-│       ├── chain.rs             # Hiro API polling
-│       └── epoch.rs             # epoch-close trigger logic
-├── web/                         # Next.js frontend
-│   ├── app/
-│   ├── components/
+│       ├── index.ts                  # poll loop
+│       ├── chain.ts                  # node polling + Clarity decoding
+│       ├── epoch.ts                  # epoch-close trigger logic
+│       └── submit.ts                 # sign/broadcast via @stacks/transactions
+├── frontend/                         # Next.js app
+│   ├── app/                          # Dashboard, Boost, Borrow routes
+│   ├── components/                   # shared Card/Nav/Status kit
 │   └── lib/
-│       ├── stacks.ts            # Stacks.js client, contract call wrappers
-│       └── contracts.ts         # contract addresses/ABIs per network
+│       ├── network.ts                # network + contract-deployer config
+│       ├── vault.ts                  # bitmax-vault/ve-stx-lock wrappers
+│       ├── sbtc.ts                   # real sBTC peg-in/out
+│       └── zest.ts                   # embedded Zest borrow integration
 └── readme.md
 ```
 
@@ -200,12 +202,10 @@ clarinet --version                                  # confirm install
 
 # Frontend
 node --version                                      # v20+
-npx create-next-app@latest web --typescript --tailwind --app
-cd web && npm install @stacks/connect @stacks/transactions @stacks/network
+cd frontend && pnpm install
 
 # Keeper
-rustup default stable
-cargo --version
+cd keeper && pnpm install
 ```
 
 Wallets for manual testing: install the Leather and Xverse browser extensions, switch both to devnet/testnet.
@@ -269,18 +269,20 @@ Clarity has no native map/list enumeration, so depositors must self-`register` i
 
 **A real gotcha worth flagging for anyone continuing this build:** the Clarinet JS SDK's Vitest integration snapshots and rolls back simnet state *per individual `it()` block*, not once per test file. Tests that assume state carries over from a previous `it` (e.g. "close an epoch, then in the next test try to close it again too soon") will silently start from a fresh chain and fail in confusing ways — every test that depends on prior mutations needs to set that state up itself, from scratch, inside itself.
 
-### Phase 5 — Rust keeper (done — `keeper/`)
+### Phase 5 — Keeper (done — `keeper/`, TypeScript)
 
-A deliberate split, not a pure-Rust implementation:
+Originally built in Rust (spawning a Node subprocess for transaction signing, since the only Rust option for that, `stacks-rs`, hasn't been updated since March 2024). On review that split didn't earn its keep: the keeper's whole job is polling a node and deciding "is it time yet" — nothing perf-critical, nothing that benefits from Rust specifically — and it still needed Node for signing regardless. A two-language service with a subprocess boundary was net complexity for no real benefit, so it was rewritten as a single TypeScript service:
 
-- **`src/chain.rs`** (Rust) — polls a Stacks node's `/v2/info` for current block height and `bitmax-boost-distributor`'s `get-last-epoch-close-height` via `/v2/contracts/call-read`, hand-decoding the one Clarity type it needs (a raw `uint`) from the hex response. Small and fully unit-tested (8 tests, no network needed).
-- **`src/epoch.rs`** (Rust) — `should_close_epoch`, a pure function mirroring the contract's own gate exactly (never closed yet, or `EPOCH-LENGTH` blocks have passed). Unit-tested in isolation.
-- **`src/submit.rs`** (Rust) — spawns a Node subprocess to actually sign and broadcast the transaction.
-- **`scripts/submit-close-epoch.mjs`** (Node, `@stacks/transactions`) — **why this isn't pure Rust:** the only Rust option for building/signing Stacks transactions, the `stacks-rs` crate, hasn't been updated since March 2024. Transaction signing is exactly the kind of security-sensitive code that shouldn't be hand-rolled (wire format, nonce/fee handling, secp256k1 signing) when a maintained, actively-used library already does it correctly — so it's delegated to `@stacks/transactions`, the same library already verified working in `frontend/lib/sbtc.ts`.
+- **`src/chain.ts`** — polls `/v2/info` for block height and `bitmax-boost-distributor`'s `get-last-epoch-close-height` via `/v2/contracts/call-read`, decoding the response with `@stacks/transactions`' own `hexToCV`/`cvToValue` rather than a hand-rolled decoder (the Rust version had to write one; the JS library already has it).
+- **`src/epoch.ts`** — `shouldCloseEpoch`, a pure function mirroring the contract's own gate exactly. Unit-tested in isolation.
+- **`src/submit.ts`** — builds and broadcasts the `close-epoch` transaction directly via `makeContractCall`/`broadcastTransaction`, the same library already verified working in `frontend/lib/sbtc.ts` — no subprocess, no second language.
+- **`src/index.ts`** — the poll loop, reading config from env vars.
 
-Config via env vars: `STACKS_API_URL`, `CONTRACT_ADDRESS`, `DISTRIBUTOR_CONTRACT_NAME`, `NETWORK`, `EPOCH_LENGTH_BLOCKS`, `POLL_INTERVAL_SECS`, `SUBMIT_SCRIPT`; the Node script separately needs `KEEPER_PRIVATE_KEY`. Run against devnet first (`clarinet devnet start` gives a local Stacks node + faucet), then testnet.
+Config via env vars: `STACKS_API_URL`, `CONTRACT_ADDRESS`, `DISTRIBUTOR_CONTRACT_NAME`, `NETWORK`, `EPOCH_LENGTH_BLOCKS`, `POLL_INTERVAL_SECS`, `KEEPER_PRIVATE_KEY`. Run with `pnpm start` (or `npx tsx src/index.ts`). Run against devnet first (`clarinet devnet start` gives a local Stacks node + faucet), then testnet.
 
-**Not yet done:** end-to-end testing against a running devnet (only unit-tested so far, no network); the Node script prints an error if the network name is wrong or the key is missing but hasn't been exercised against a live broadcast yet.
+7/7 Vitest tests passing (`epoch.test.ts` unit tests, `chain.test.ts` against a mocked `fetch` using real `@stacks/transactions`-encoded responses, not hand-crafted hex), `tsc --noEmit` clean.
+
+**Not yet done:** end-to-end testing against a running devnet (only unit-tested so far, no live network); no automated tests directly on `submit.ts` (it's a thin wrapper over `@stacks/transactions`, exercised manually via the same code path `frontend/lib/sbtc.ts` already validates, but not covered by its own test).
 
 ### Phase 6 — Frontend (done — `frontend/`, multi-page with embedded Zest borrow)
 
