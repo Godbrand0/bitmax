@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@/lib/wallet";
-import { borrowUsdc, supplyStbtcCollateral, ZEST_AVAILABLE } from "@/lib/zest";
-import { btcToSats } from "@/lib/format";
+import { borrowUsdc, estimateBorrowableUsdc, getBtcUsdPrice, supplyStbtcCollateral, ZEST_AVAILABLE } from "@/lib/zest";
+import { getSbtcBalance } from "@/lib/vault";
+import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
 import { Card, PrimaryButton, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
@@ -11,6 +12,9 @@ import { ConnectPrompt } from "@/components/ConnectPrompt";
 
 export default function BorrowPage() {
   const wallet = useWallet();
+  const [sbtcBalance, setSbtcBalance] = useState<bigint | null>(null);
+  const [btcUsdPrice, setBtcUsdPrice] = useState<number | null>(null);
+
   const [supplyAmount, setSupplyAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -18,6 +22,21 @@ export default function BorrowPage() {
 
   const setMessage = (key: string, text: string, kind: StatusKind) =>
     setMessages((m) => ({ ...m, [key]: { text, kind } }));
+
+  useEffect(() => {
+    if (!wallet.address) return;
+    getSbtcBalance(wallet.address).then(setSbtcBalance).catch(() => setSbtcBalance(null));
+    getBtcUsdPrice().then(setBtcUsdPrice).catch(() => setBtcUsdPrice(null));
+  }, [wallet.address]);
+
+  let estimatedUsdc: number | null = null;
+  try {
+    if (supplyAmount && btcUsdPrice !== null) {
+      estimatedUsdc = estimateBorrowableUsdc(btcToSats(supplyAmount), btcUsdPrice);
+    }
+  } catch {
+    estimatedUsdc = null;
+  }
 
   async function handleSupply() {
     if (!wallet.address) return;
@@ -74,29 +93,53 @@ export default function BorrowPage() {
               </p>
             </Card>
 
-            <Card title="Supply stBTC as collateral" step={1}>
-              <div className="flex flex-col gap-3">
-                <TextInput value={supplyAmount} onChange={setSupplyAmount} placeholder="Amount in BTC, e.g. 0.01" />
-                <PrimaryButton disabled={busy === "supply" || !supplyAmount} onClick={handleSupply}>
-                  {busy === "supply" ? "Submitting..." : "Supply to Zest"}
-                </PrimaryButton>
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+              <div className="flex-1">
+                <Card title="Supply stBTC as collateral" step={1}>
+                  <p className="mb-3 text-xs text-muted">
+                    Your sBTC balance:{" "}
+                    <span className="font-medium text-foreground">
+                      {sbtcBalance === null ? "..." : `${satsToBtc(sbtcBalance)} sBTC`}
+                    </span>
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <TextInput
+                      value={supplyAmount}
+                      onChange={setSupplyAmount}
+                      placeholder="Amount of sBTC to supply, e.g. 0.01"
+                    />
+                    <PrimaryButton disabled={busy === "supply" || !supplyAmount} onClick={handleSupply}>
+                      {busy === "supply" ? "Submitting..." : "Supply to Zest"}
+                    </PrimaryButton>
+                  </div>
+                  {estimatedUsdc !== null && (
+                    <p className="mt-3 text-xs text-muted">
+                      Estimated up to <span className="font-medium text-foreground">~${estimatedUsdc.toFixed(2)} USDC</span>{" "}
+                      borrowable against this. A rough guide only, based on a live BTC price and a
+                      conservative assumed limit - Zest&apos;s own contract enforces the real limit
+                      when you borrow.
+                    </p>
+                  )}
+                  {messages["supply"] && <Status {...messages["supply"]!} />}
+                </Card>
               </div>
-              {messages["supply"] && <Status {...messages["supply"]!} />}
-            </Card>
 
-            <Card title="Borrow USDC" step={2}>
-              <div className="flex flex-col gap-3">
-                <TextInput value={borrowAmount} onChange={setBorrowAmount} placeholder="Amount in USDC, e.g. 50" />
-                <PrimaryButton disabled={busy === "borrow" || !borrowAmount} onClick={handleBorrow}>
-                  {busy === "borrow" ? "Submitting..." : "Borrow"}
-                </PrimaryButton>
+              <div className="flex-1">
+                <Card title="Borrow USDC" step={2}>
+                  <div className="flex flex-col gap-3">
+                    <TextInput value={borrowAmount} onChange={setBorrowAmount} placeholder="Amount in USDC, e.g. 50" />
+                    <PrimaryButton disabled={busy === "borrow" || !borrowAmount} onClick={handleBorrow}>
+                      {busy === "borrow" ? "Submitting..." : "Borrow"}
+                    </PrimaryButton>
+                  </div>
+                  {messages["borrow"] && <Status {...messages["borrow"]!} />}
+                  <p className="mt-3 text-xs text-muted">
+                    Borrowing too much against too little collateral risks liquidation - Zest enforces
+                    this on-chain and will reject an unsafe borrow.
+                  </p>
+                </Card>
               </div>
-              {messages["borrow"] && <Status {...messages["borrow"]!} />}
-              <p className="mt-3 text-xs text-muted">
-                Borrowing too much against too little collateral risks liquidation - Zest enforces this
-                on-chain and will reject an unsafe borrow.
-              </p>
-            </Card>
+            </div>
           </div>
         )}
       </div>

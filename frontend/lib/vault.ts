@@ -111,6 +111,32 @@ export async function getLockWeight(address: string): Promise<bigint> {
   return readUint(cv);
 }
 
+// The real sBTC SIP-010 token, distinct from bitmax-vault - this is what
+// the user actually holds in their own wallet before depositing, and what
+// the Borrow page reads to show a live "your sBTC balance" figure. On
+// mainnet it's sBTC's real deployed contract; on devnet/testnet there's no
+// such deployment reachable here, so it falls back to our own mock-sbtc
+// (the same stand-in bitmax-vault itself is built and tested against - see
+// readme.md section 6 on Phase 3).
+const SBTC_TOKEN_MAINNET = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
+
+export async function getSbtcBalance(address: string): Promise<bigint> {
+  const [contractAddress, contractName] =
+    NETWORK_NAME === "mainnet" ? SBTC_TOKEN_MAINNET.split(".") : [CONTRACT_DEPLOYER, "mock-sbtc"];
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress,
+    contractName,
+    functionName: "get-balance",
+    functionArgs: [Cl.principal(address)],
+    senderAddress: address,
+    network: NETWORK,
+  });
+  if (cv.type !== "ok") {
+    throw new Error("could not read sBTC balance");
+  }
+  return readUint(cv.value);
+}
+
 export async function getLock(address: string) {
   const cv = await fetchCallReadOnlyFunction({
     contractAddress: CONTRACT_DEPLOYER,

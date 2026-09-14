@@ -100,3 +100,34 @@ export async function borrowUsdc(amountUsdc: bigint, senderAddress: string) {
     network: NETWORK_NAME,
   });
 }
+
+// --- "how much could I borrow?" estimate ---------------------------------
+//
+// Zest's own contract has no public read-only for this - the real capacity
+// calculation (collateral-add/borrow in v0-8-market.clar) is private and
+// needs live Pyth Lazer price feeds plus an egroup-mask-keyed LTV lookup
+// that isn't safely reproducible client-side (traced through the actual
+// source; there is no `get-max-borrow`-style helper exposed anywhere).
+// Rather than skip the feature or fake a number, this computes a clearly
+// labeled ESTIMATE from a public BTC/USD price and a conservative fixed
+// LTV, and the UI must present it as an estimate, not a guarantee - Zest's
+// own contract independently enforces the real limit at borrow time
+// regardless of what this shows.
+
+// Conservative placeholder: Zest's own docs cite up to ~70% LTV for sBTC
+// and ~50% for other assets; stBTC's specific egroup LTV isn't confirmed,
+// so this assumes the more conservative end rather than overstate capacity.
+export const ESTIMATED_LTV = 0.5;
+
+export async function getBtcUsdPrice(): Promise<number> {
+  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+  if (!res.ok) throw new Error("could not fetch a BTC price for the borrow estimate");
+  const data = (await res.json()) as { bitcoin: { usd: number } };
+  return data.bitcoin.usd;
+}
+
+/** stBTC amount (sats) + BTC/USD price -> an estimated USDC borrow limit, in whole USDC. */
+export function estimateBorrowableUsdc(stbtcSats: bigint, btcUsdPrice: number): number {
+  const stbtcBtc = Number(stbtcSats) / 100_000_000;
+  return stbtcBtc * btcUsdPrice * ESTIMATED_LTV;
+}
