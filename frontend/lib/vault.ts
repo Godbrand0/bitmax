@@ -137,6 +137,31 @@ export async function getSbtcBalance(address: string): Promise<bigint> {
   return readUint(cv.value);
 }
 
+// StackingDAO's real stBTC SIP-010 token - what the vault actually pays out
+// on redeem, and what Zest's Borrow page supplies as collateral (Zest takes
+// stBTC itself, not sBTC - see lib/zest.ts). Confirmed against StackingDAO's
+// own deployed source (github.com/StackingDAO/stackingdao-smart-contracts,
+// mainnet/contracts/tokens/stbtc-token.clar), not guessed: standard SIP-010,
+// 8 decimals. On devnet/testnet, falls back to our own mock-stbtc.
+const STBTC_TOKEN_MAINNET = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.stbtc-token";
+
+export async function getStbtcBalance(address: string): Promise<bigint> {
+  const [contractAddress, contractName] =
+    NETWORK_NAME === "mainnet" ? STBTC_TOKEN_MAINNET.split(".") : [CONTRACT_DEPLOYER, "mock-stbtc"];
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress,
+    contractName,
+    functionName: "get-balance",
+    functionArgs: [Cl.principal(address)],
+    senderAddress: address,
+    network: NETWORK,
+  });
+  if (cv.type !== "ok") {
+    throw new Error("could not read stBTC balance");
+  }
+  return readUint(cv.value);
+}
+
 export async function getLock(address: string) {
   const cv = await fetchCallReadOnlyFunction({
     contractAddress: CONTRACT_DEPLOYER,

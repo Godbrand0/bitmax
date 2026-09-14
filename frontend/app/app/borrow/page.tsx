@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@/lib/wallet";
 import { borrowUsdc, estimateBorrowableUsdc, getBtcUsdPrice, supplyStbtcCollateral, ZEST_AVAILABLE } from "@/lib/zest";
-import { getSbtcBalance } from "@/lib/vault";
+import { getStbtcBalance } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
 import { Card, PrimaryButton, TextInput } from "@/components/Card";
@@ -12,7 +12,7 @@ import { ConnectPrompt } from "@/components/ConnectPrompt";
 
 export default function BorrowPage() {
   const wallet = useWallet();
-  const [sbtcBalance, setSbtcBalance] = useState<bigint | null>(null);
+  const [stbtcBalance, setStbtcBalance] = useState<bigint | null>(null);
   const [btcUsdPrice, setBtcUsdPrice] = useState<number | null>(null);
 
   const [supplyAmount, setSupplyAmount] = useState("");
@@ -25,7 +25,7 @@ export default function BorrowPage() {
 
   useEffect(() => {
     if (!wallet.address) return;
-    getSbtcBalance(wallet.address).then(setSbtcBalance).catch(() => setSbtcBalance(null));
+    getStbtcBalance(wallet.address).then(setStbtcBalance).catch(() => setStbtcBalance(null));
     getBtcUsdPrice().then(setBtcUsdPrice).catch(() => setBtcUsdPrice(null));
   }, [wallet.address]);
 
@@ -70,7 +70,7 @@ export default function BorrowPage() {
 
   return (
     <div className="flex flex-1 flex-col items-center bg-background">
-      <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
+      <div className="w-full max-w-4xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
           <ConnectPrompt text="Connect your wallet to borrow against your balance." />
         ) : !ZEST_AVAILABLE ? (
@@ -97,16 +97,16 @@ export default function BorrowPage() {
               <div className="flex-1">
                 <Card title="Supply stBTC as collateral" step={1}>
                   <p className="mb-3 text-xs text-muted">
-                    Your sBTC balance:{" "}
+                    Your stBTC balance:{" "}
                     <span className="font-medium text-foreground">
-                      {sbtcBalance === null ? "..." : `${satsToBtc(sbtcBalance)} sBTC`}
+                      {stbtcBalance === null ? "..." : `${satsToBtc(stbtcBalance)} stBTC`}
                     </span>
                   </p>
                   <div className="flex flex-col gap-3">
                     <TextInput
                       value={supplyAmount}
                       onChange={setSupplyAmount}
-                      placeholder="Amount of sBTC to supply, e.g. 0.01"
+                      placeholder="Amount of stBTC to supply, e.g. 0.01"
                     />
                     <PrimaryButton disabled={busy === "supply" || !supplyAmount} onClick={handleSupply}>
                       {busy === "supply" ? "Submitting..." : "Supply to Zest"}
