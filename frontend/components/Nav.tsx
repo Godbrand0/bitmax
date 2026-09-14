@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@/lib/wallet";
+import { WalletMenu } from "@/components/WalletMenu";
 
 const LINKS = [
   { href: "/app", label: "Dashboard" },
@@ -51,12 +52,7 @@ export function Nav() {
         </nav>
 
         {wallet.address ? (
-          <button
-            onClick={wallet.disconnect}
-            className="shrink-0 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-muted sm:text-sm"
-          >
-            {wallet.address.slice(0, 5)}...{wallet.address.slice(-4)}
-          </button>
+          <WalletMenu />
         ) : (
           <button
             onClick={wallet.connect}
