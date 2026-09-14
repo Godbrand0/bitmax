@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/lib/wallet";
-import { depositBtcToSbtc } from "@/lib/sbtc";
 import {
   depositSbtc,
   getLockWeight,
@@ -13,7 +12,6 @@ import {
   redeemStbtc,
 } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
-import { NETWORK_NAME } from "@/lib/network";
 import { Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status } from "@/components/Status";
 import { ConnectPrompt } from "@/components/ConnectPrompt";
@@ -25,7 +23,6 @@ export default function Dashboard() {
   const [sbtcBalance, setSbtcBalance] = useState<bigint | null>(null);
   const [weight, setWeight] = useState<bigint>(0n);
 
-  const [bringInAmount, setBringInAmount] = useState("");
   const [startEarningAmount, setStartEarningAmount] = useState("");
   const [redeemAmount, setRedeemAmount] = useState("");
 
@@ -66,29 +63,6 @@ export default function Dashboard() {
   useEffect(() => {
     refresh();
   }, [refresh]);
-
-  async function handleBringInBitcoin() {
-    if (!wallet.address || !wallet.btcPublicKey) return;
-    setBusy("bring-in");
-    try {
-      const amountSats = Number(btcToSats(bringInAmount));
-      const { txid } = await depositBtcToSbtc({
-        network: NETWORK_NAME === "mainnet" ? "mainnet" : "testnet",
-        stacksAddress: wallet.address,
-        reclaimPublicKey: wallet.btcPublicKey,
-        amountSats,
-      });
-      setMessage(
-        "bring-in",
-        `Sent! Your Bitcoin transaction is ${txid}. It usually takes about 20 minutes for your Bitcoin-backed balance to show up here - that wait is real Bitcoin confirmation time, not something we can skip.`,
-        "success"
-      );
-    } catch (err) {
-      setMessage("bring-in", err instanceof Error ? err.message : "Something went wrong.", "error");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function handleStartEarning() {
     setBusy("start-earning");
@@ -172,53 +146,28 @@ export default function Dashboard() {
               </div>
             </Card>
 
-            <Card title="Bring in Bitcoin & start earning">
-              <p className="mb-4 text-muted">
-                Two quick actions, one goal: get your Bitcoin working. Send BTC, wait for it to arrive
-                as sBTC, then deposit that sBTC to start earning - depositing is what starts earning,
-                there&apos;s no separate step after this.
+            <Card title="Deposit sBTC to start earning">
+              <p className="mb-3 text-muted">
+                Your sBTC balance:{" "}
+                <span className="font-medium text-foreground">
+                  {sbtcBalance === null ? "..." : `${satsToBtc(sbtcBalance)} sBTC`}
+                </span>
+                . Deposit it here - that deposit is what starts it earning, immediately.
               </p>
-
-              <div className="rounded-xl border border-border p-4">
-                <p className="text-xs font-semibold text-muted">STEP 1 · SEND BITCOIN</p>
-                <p className="mb-3 mt-1 text-sm text-muted">
-                  Send BTC from your wallet. This takes about 20 minutes to confirm on the Bitcoin
-                  network - that&apos;s real Bitcoin security, not a delay we add.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <TextInput value={bringInAmount} onChange={setBringInAmount} placeholder="Amount in BTC, e.g. 0.01" />
-                  <PrimaryButton disabled={busy === "bring-in" || !bringInAmount} onClick={handleBringInBitcoin}>
-                    {busy === "bring-in" ? "Sending..." : "Bring in Bitcoin"}
-                  </PrimaryButton>
-                </div>
-                {messages["bring-in"] && <Status {...messages["bring-in"]!} />}
+              <div className="flex flex-col gap-3">
+                <TextInput
+                  value={startEarningAmount}
+                  onChange={setStartEarningAmount}
+                  placeholder="Amount of sBTC to deposit, e.g. 0.01"
+                />
+                <PrimaryButton
+                  disabled={busy === "start-earning" || !startEarningAmount}
+                  onClick={handleStartEarning}
+                >
+                  {busy === "start-earning" ? "Submitting..." : "Deposit & Start Earning"}
+                </PrimaryButton>
               </div>
-
-              <div className="mt-4 rounded-xl border border-border p-4">
-                <p className="text-xs font-semibold text-muted">STEP 2 · DEPOSIT SBTC TO START EARNING</p>
-                <p className="mb-3 mt-1 text-sm text-muted">
-                  Your sBTC balance:{" "}
-                  <span className="font-medium text-foreground">
-                    {sbtcBalance === null ? "..." : `${satsToBtc(sbtcBalance)} sBTC`}
-                  </span>
-                  . Once your sBTC has arrived, deposit it here - that deposit is what starts it
-                  earning, immediately.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <TextInput
-                    value={startEarningAmount}
-                    onChange={setStartEarningAmount}
-                    placeholder="Amount of sBTC to deposit, e.g. 0.01"
-                  />
-                  <PrimaryButton
-                    disabled={busy === "start-earning" || !startEarningAmount}
-                    onClick={handleStartEarning}
-                  >
-                    {busy === "start-earning" ? "Submitting..." : "Deposit & Start Earning"}
-                  </PrimaryButton>
-                </div>
-                {messages["start-earning"] && <Status {...messages["start-earning"]!} />}
-              </div>
+              {messages["start-earning"] && <Status {...messages["start-earning"]!} />}
             </Card>
 
             <Card title="Use your balance elsewhere">

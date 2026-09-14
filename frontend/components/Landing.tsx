@@ -61,15 +61,15 @@ function ShieldIcon() {
 const HOW_IT_WORKS = [
   {
     icon: <DepositIcon />,
-    title: "Bring in your Bitcoin",
+    title: "Deposit sBTC to start earning",
     detail:
-      "Send BTC from your own wallet. It becomes a Bitcoin-backed balance on Stacks - a real Bitcoin peg-in, confirmed on the Bitcoin network, not an IOU.",
+      "Already hold sBTC? Deposit it and it starts earning Bitcoin Staking rewards immediately - no separate peg-in step inside BitMax, no active management, no manual claiming.",
   },
   {
     icon: <EarnIcon />,
-    title: "Start earning",
+    title: "Watch it grow",
     detail:
-      "Put that balance to work and it starts earning Bitcoin Staking rewards automatically. No active management, no manual claiming.",
+      "Your balance grows automatically as staking rewards accrue - no claiming, no restaking, nothing to manage.",
   },
   {
     icon: <BoostIcon />,
@@ -87,8 +87,8 @@ const HOW_IT_WORKS = [
 
 const FAQ = [
   {
-    q: "Is my Bitcoin safe?",
-    a: "BitMax never takes custody of your Bitcoin beyond what you've deposited into the vault, and you can move your balance back out to your own wallet at any time. The underlying peg-in/peg-out is Bitcoin's own sBTC mechanism, not a BitMax-run bridge.",
+    q: "Is my sBTC safe?",
+    a: "BitMax never takes custody of your sBTC beyond what you've deposited into the vault, and you can move your balance back out to your own wallet at any time. BitMax doesn't handle the BTC-to-sBTC peg-in itself - that happens through sBTC's own official bridge before you ever touch BitMax.",
   },
   {
     q: "Do I have to lock STX?",
@@ -141,9 +141,9 @@ export function Landing() {
           Grow your Bitcoin, simply.
         </h1>
         <p className="mx-auto mt-3 max-w-md text-muted">
-          Deposit Bitcoin, earn real staking rewards automatically, boost your share by locking STX,
-          and borrow against your growing balance - all from one dashboard, without giving up
-          custody of your yield.
+          Deposit sBTC, earn real staking rewards automatically, boost your share by locking STX, and
+          borrow against your growing balance - all from one dashboard, without giving up custody of
+          your yield.
         </p>
         <div className="mt-6 flex flex-col items-center gap-3">
           <button
@@ -258,7 +258,7 @@ export function Landing() {
         <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
           {wallet.address
             ? "Your wallet is connected - head to your dashboard to get started."
-            : "Connect a Stacks wallet (Leather or Xverse) to bring in Bitcoin and start earning."}
+            : "Connect a Stacks wallet (Leather or Xverse) to deposit sBTC and start earning."}
         </p>
         <button
           onClick={handleCta}
