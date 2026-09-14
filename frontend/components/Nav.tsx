@@ -27,7 +27,7 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6">
         <Logo />
 
         <nav className="order-3 flex w-full gap-1 rounded-full border border-border bg-surface-muted p-1 sm:order-0 sm:w-auto">

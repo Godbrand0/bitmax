@@ -16,7 +16,7 @@ import {
 import { getStbtcBalance } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
-import { Card, PrimaryButton, SecondaryButton, StatTile, TextInput } from "@/components/Card";
+import { Badge, Card, PrimaryButton, SecondaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
 import { ConnectPrompt } from "@/components/ConnectPrompt";
 
@@ -81,6 +81,7 @@ export default function BorrowPage() {
       const amountUsdc = BigInt(Math.round(Number(borrowAmount) * 1_000_000));
       await borrowUsdc(amountUsdc, wallet.address);
       setMessage("borrow", "Submitted to Zest! The USDC will arrive in your wallet once confirmed.", "success");
+      setBorrowAmount("");
       refresh();
     } catch (err) {
       setMessage("borrow", err instanceof Error ? err.message : "Something went wrong.", "error");
@@ -114,9 +115,11 @@ export default function BorrowPage() {
     setRepayAmount((Number(usdcBalance) / 1_000_000).toString());
   }
 
+  const actionColumns = hasDebt ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2";
+
   return (
     <div className="flex flex-1 flex-col items-center bg-background">
-      <div className="w-full max-w-4xl px-4 py-10 sm:px-6">
+      <div className="w-full max-w-6xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
           <ConnectPrompt text="Connect your wallet to borrow against your balance." />
         ) : !ZEST_AVAILABLE ? (
@@ -131,7 +134,7 @@ export default function BorrowPage() {
         ) : (
           <div className="flex flex-col gap-6">
             <Card title="Your Zest position">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <StatTile
                   label="Collateral supplied"
                   value={suppliedStbtc === null ? "..." : `${satsToBtc(suppliedStbtc)} stBTC`}
@@ -141,69 +144,68 @@ export default function BorrowPage() {
                   tone="positive"
                   value={estimatedUsdc === null ? "..." : `~$${estimatedUsdc.toFixed(2)} USDC`}
                 />
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted">Loan status</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">
+                    {hasDebt === null ? "..." : hasDebt ? "Active loan" : "None"}
+                  </p>
+                </div>
               </div>
               <p className="mt-4 text-xs text-muted">
-                Collateral supplied is read directly from Zest. The borrow figure is a rough estimate
-                only - based on a live BTC price and a conservative assumed limit, not Zest&apos;s
-                exact on-chain calculation - so use it as a guide for what to type below, not a
-                guarantee. Zest&apos;s own contract enforces the real limit when you actually borrow.
+                Collateral supplied and loan status are read directly from Zest. The borrow figure is
+                a rough estimate only - based on a live BTC price and a conservative assumed limit,
+                not Zest&apos;s exact on-chain calculation - so use it as a guide for what to type
+                below, not a guarantee. Zest&apos;s own contract enforces the real limit when you
+                actually borrow.
               </p>
-              {hasDebt !== null && (
-                <div className="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-foreground/90">
-                  {hasDebt
-                    ? "You have an active USDC loan on Zest - see Repay below."
-                    : "You have no outstanding USDC loan on Zest right now."}
-                </div>
-              )}
             </Card>
 
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-              <div className="flex-1">
-                <Card title="Supply stBTC as collateral" step={1}>
-                  <p className="mb-3 text-xs text-muted">
-                    Your stBTC balance:{" "}
-                    <span className="font-medium text-foreground">
-                      {stbtcBalance === null ? "..." : `${satsToBtc(stbtcBalance)} stBTC`}
-                    </span>
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    <TextInput
-                      value={supplyAmount}
-                      onChange={setSupplyAmount}
-                      placeholder="Amount of stBTC to supply, e.g. 0.01"
-                    />
-                    <PrimaryButton disabled={busy === "supply" || !supplyAmount} onClick={handleSupply}>
-                      {busy === "supply" ? "Submitting..." : "Supply to Zest"}
-                    </PrimaryButton>
-                  </div>
-                  {messages["supply"] && <Status {...messages["supply"]!} />}
-                </Card>
-              </div>
+            <div className={`grid grid-cols-1 gap-6 ${actionColumns}`}>
+              <Card title="Supply stBTC as collateral" step={1}>
+                <p className="mb-3 text-xs text-muted">
+                  Your stBTC balance:{" "}
+                  <span className="font-medium text-foreground">
+                    {stbtcBalance === null ? "..." : `${satsToBtc(stbtcBalance)} stBTC`}
+                  </span>
+                </p>
+                <div className="flex flex-col gap-3">
+                  <TextInput
+                    value={supplyAmount}
+                    onChange={setSupplyAmount}
+                    placeholder="Amount of stBTC to supply, e.g. 0.01"
+                  />
+                  <PrimaryButton disabled={busy === "supply" || !supplyAmount} onClick={handleSupply}>
+                    {busy === "supply" ? "Submitting..." : "Supply to Zest"}
+                  </PrimaryButton>
+                </div>
+                {messages["supply"] && <Status {...messages["supply"]!} />}
+              </Card>
 
-              <div className="flex-1">
-                <Card title="Borrow USDC" step={2}>
-                  <div className="flex flex-col gap-3">
-                    <TextInput value={borrowAmount} onChange={setBorrowAmount} placeholder="Amount in USDC, e.g. 50" />
-                    <PrimaryButton disabled={busy === "borrow" || !borrowAmount} onClick={handleBorrow}>
-                      {busy === "borrow" ? "Submitting..." : "Borrow"}
-                    </PrimaryButton>
-                  </div>
-                  {messages["borrow"] && <Status {...messages["borrow"]!} />}
-                  <p className="mt-3 text-xs text-muted">
-                    Borrowing too much against too little collateral risks liquidation - Zest enforces
-                    this on-chain and will reject an unsafe borrow.
-                  </p>
-                </Card>
-              </div>
+              <Card title="Borrow USDC" step={2}>
+                <div className="flex flex-col gap-3">
+                  <TextInput value={borrowAmount} onChange={setBorrowAmount} placeholder="Amount in USDC, e.g. 50" />
+                  <PrimaryButton disabled={busy === "borrow" || !borrowAmount} onClick={handleBorrow}>
+                    {busy === "borrow" ? "Submitting..." : "Borrow"}
+                  </PrimaryButton>
+                </div>
+                {messages["borrow"] && <Status {...messages["borrow"]!} />}
+                <p className="mt-3 text-xs text-muted">
+                  Borrowing too much against too little collateral risks liquidation - Zest enforces
+                  this on-chain and will reject an unsafe borrow.
+                </p>
+              </Card>
 
-              <div className="flex-1">
-                <Card title="Repay USDC" step={3}>
-                  <p className="mb-3 text-xs text-muted">
-                    Your USDC balance:{" "}
-                    <span className="font-medium text-foreground">
-                      {usdcBalance === null ? "..." : `$${(Number(usdcBalance) / 1_000_000).toFixed(2)}`}
-                    </span>
-                  </p>
+              {hasDebt && (
+                <Card title="Repay USDC">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs text-muted">
+                      Your USDC balance:{" "}
+                      <span className="font-medium text-foreground">
+                        {usdcBalance === null ? "..." : `$${(Number(usdcBalance) / 1_000_000).toFixed(2)}`}
+                      </span>
+                    </p>
+                    <Badge tone="neutral">Active loan</Badge>
+                  </div>
                   <div className="flex flex-col gap-3">
                     <TextInput value={repayAmount} onChange={setRepayAmount} placeholder="Amount in USDC, e.g. 50" />
                     <SecondaryButton disabled={usdcBalance === null} onClick={handleRepayMax}>
@@ -219,7 +221,7 @@ export default function BorrowPage() {
                     your debt (like your full balance) just clears it, nothing is wasted.
                   </p>
                 </Card>
-              </div>
+              )}
             </div>
 
             <Card title="Borrow against your balance">
