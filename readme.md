@@ -323,6 +323,15 @@ Every write in the app — `deposit`, `redeem`, `redeem-to-sbtc`, `lock-stx`, `u
 - **No unsponsored fallback.** If `SPONSOR_PRIVATE_KEY` isn't set, the endpoint returns a clear 503 and every write in the app fails with an explicit "gas sponsorship isn't configured" message, rather than silently trying something else. That was a deliberate choice, not an oversight — the alternative (silently falling back to asking the user to pay their own fee) would contradict the whole point of sponsoring "all transactions," as asked.
 - **Not yet done:** rate-limiting / per-account spend caps on the sponsor endpoint. The contract allowlist stops arbitrary abuse, but a malicious user could still spam legitimate-looking calls (e.g. tiny repeated deposits) to drain the sponsor wallet faster than intended — worth adding before a real funded key goes live on mainnet.
 
+### 6c. Docs page (`app/docs/page.tsx`)
+
+A public, always-reachable page (no wallet needed, linked from the nav on every route) explaining the whole product: how the deposit → boost → borrow flow works, the boost mechanism in more depth than the landing page's FAQ, gas sponsorship, the non-custodial/safety model, and — the part actually requested — every contract this app talks to, grouped by protocol (BitMax's own three, sBTC, StackingDAO, Zest), each with its exact principal and a link to view it on Hiro's explorer.
+
+- **No guessed addresses.** Every principal listed was confirmed against each protocol's own deployed source earlier in this build (sections 5, 6a) — the Docs page just surfaces that same information to the user instead of leaving it buried in code comments.
+- **Explorer links are built from `NETWORK_NAME`**, so they follow whichever network this deployment is actually pointed at, and are simply omitted (with a plain-text principal shown instead) on devnet, since there's no public explorer for a local chain.
+- **Honest about what's not wired up yet:** the BitMax-contracts table shows a note if `NEXT_PUBLIC_CONTRACT_DEPLOYER` is still the Clarinet devnet placeholder (i.e. no real deployment configured), and a footnote clarifies that `bitmax-vault.clar` itself still stakes against the mock StackingDAO stand-in (Phase 3), not the real `stacking-dao-core-stbtc-v1` contract listed — even though the frontend's stBTC balance reads already use the real token.
+- Static, server-rendered page (no `"use client"`, no hooks) — it's pure content, so there's no reason to ship it as client-side JS.
+
 ---
 
 ## 13. Testing strategy

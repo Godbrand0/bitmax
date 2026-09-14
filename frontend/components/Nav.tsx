@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/boost", label: "Boost" },
   { href: "/app/borrow", label: "Borrow" },
+  { href: "/docs", label: "Docs" },
 ];
 
 function Logo() {
