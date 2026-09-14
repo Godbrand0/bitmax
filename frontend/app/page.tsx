@@ -13,15 +13,9 @@ import {
 } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
-import { Badge, Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
+import { Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status } from "@/components/Status";
-
-const HERO_STEPS = [
-  { title: "Bring in your Bitcoin", detail: "It becomes a Bitcoin-backed balance you can use on Stacks." },
-  { title: "Start earning", detail: "Your balance earns staking rewards automatically." },
-  { title: "Boost your rewards", detail: "Lock STX for a bigger share - this is the core of what BitMax does." },
-  { title: "Borrow against it", detail: "Use your growing balance as collateral on Zest, right in this app." },
-];
+import { Landing } from "@/components/Landing";
 
 export default function Home() {
   const wallet = useWallet();
@@ -131,43 +125,7 @@ export default function Home() {
     <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-2xl px-4 py-10 sm:px-6">
         {!wallet.address ? (
-          <div className="flex flex-col gap-8">
-            <div className="text-center">
-              <Badge>Live on Stacks</Badge>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                Grow your Bitcoin, simply.
-              </h1>
-              <p className="mx-auto mt-3 max-w-md text-muted">
-                Deposit Bitcoin, earn staking rewards automatically, and boost your share by locking
-                STX - all from one dashboard.
-              </p>
-              <div className="mt-6">
-                <button
-                  onClick={wallet.connect}
-                  disabled={wallet.connecting}
-                  className="rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {wallet.connecting ? "Connecting..." : "Connect Wallet to Start"}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-surface p-6 sm:p-7">
-              <ol className="flex flex-col gap-5">
-                {HERO_STEPS.map((step, i) => (
-                  <li key={step.title} className="flex gap-4">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <p className="font-semibold text-foreground">{step.title}</p>
-                      <p className="text-sm text-muted">{step.detail}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
+          <Landing onConnect={wallet.connect} connecting={wallet.connecting} />
         ) : (
           <div className="flex flex-col gap-6">
             {networkError && <Status text={networkError} kind="error" />}
