@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useWallet } from "@/lib/wallet";
 
 const LINKS = [
-  { href: "/", label: "Dashboard" },
   { href: "/boost", label: "Boost" },
   { href: "/borrow", label: "Borrow" },
 ];
