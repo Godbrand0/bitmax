@@ -107,6 +107,67 @@ export async function borrowUsdc(amountUsdc: bigint, senderAddress: string) {
   });
 }
 
+/**
+ * Repays `amountUsdc` of the caller's own outstanding USDC debt on Zest.
+ * Safe to overpay: traced through `repay` in `v0-8-market.clar` - it caps
+ * the actual pull to `min(amount, real outstanding debt)` before ever
+ * calling the SIP-010 transfer, so passing more than is owed just repays
+ * everything owed, never more. That's what makes a "repay my full wallet
+ * balance" shortcut safe without first knowing the exact debt (see below
+ * for why that exact figure isn't reliably readable anyway).
+ */
+export async function repayUsdc(amountUsdc: bigint, senderAddress: string) {
+  const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, senderAddress);
+  return submitSponsored({
+    contract: zestContract(ZEST_MARKET),
+    functionName: "repay",
+    functionArgs: [Cl.principal(usdcContract), Cl.uint(amountUsdc), Cl.none()],
+  });
+}
+
+/** The caller's real USDC wallet balance - resolved via Zest's own registry, not hardcoded. */
+export async function getUsdcBalance(account: string): Promise<bigint> {
+  const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, account);
+  const [contractAddress, contractName] = usdcContract.split(".");
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress,
+    contractName,
+    functionName: "get-balance",
+    functionArgs: [Cl.principal(account)],
+    senderAddress: account,
+    network: NETWORK,
+  });
+  if (cv.type !== "ok") return 0n;
+  const inner = cv.value;
+  if (inner.type !== "uint") return 0n;
+  return BigInt(inner.value);
+}
+
+/**
+ * Whether the caller currently has any outstanding USDC debt on Zest at
+ * all - a real, always-safe read (`debt-scaled` defaults to 0 rather than
+ * panicking on a missing entry, unlike `get-collateral`). Deliberately
+ * NOT converted to an exact USDC amount: that conversion needs the current
+ * borrow index, which v0-8-market only caches when some other transaction
+ * has already triggered accrual in the same block (`get-cached-indexes` is
+ * keyed by the current block, and nothing refreshes it on a passive read)
+ * - reading it cold would silently show a stale, wrong number most of the
+ * time rather than an honest one.
+ */
+export async function hasOutstandingUsdcDebt(account: string): Promise<boolean> {
+  const accountId = await getZestAccountId(account, account);
+  if (accountId === null) return false;
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress: ZEST_DEPLOYER,
+    contractName: ZEST_MARKET_VAULT,
+    functionName: "debt-scaled",
+    functionArgs: [Cl.uint(accountId), Cl.uint(ZEST_ASSET_IDS.USDC)],
+    senderAddress: account,
+    network: NETWORK,
+  });
+  return cv.type === "uint" && BigInt(cv.value) > 0n;
+}
+
 // --- "how much could I borrow?" estimate ---------------------------------
 //
 // Zest's own contract has no public read-only for this - the real capacity

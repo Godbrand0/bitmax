@@ -7,13 +7,16 @@ import {
   estimateBorrowableUsdc,
   getBtcUsdPrice,
   getSuppliedStbtc,
+  getUsdcBalance,
+  hasOutstandingUsdcDebt,
+  repayUsdc,
   supplyStbtcCollateral,
   ZEST_AVAILABLE,
 } from "@/lib/zest";
 import { getStbtcBalance } from "@/lib/vault";
 import { btcToSats, satsToBtc } from "@/lib/format";
 import { NETWORK_NAME } from "@/lib/network";
-import { Card, PrimaryButton, StatTile, TextInput } from "@/components/Card";
+import { Card, PrimaryButton, SecondaryButton, StatTile, TextInput } from "@/components/Card";
 import { Status, type StatusKind } from "@/components/Status";
 import { ConnectPrompt } from "@/components/ConnectPrompt";
 
@@ -22,9 +25,12 @@ export default function BorrowPage() {
   const [stbtcBalance, setStbtcBalance] = useState<bigint | null>(null);
   const [suppliedStbtc, setSuppliedStbtc] = useState<bigint | null>(null);
   const [btcUsdPrice, setBtcUsdPrice] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<bigint | null>(null);
+  const [hasDebt, setHasDebt] = useState<boolean | null>(null);
 
   const [supplyAmount, setSupplyAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
+  const [repayAmount, setRepayAmount] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, { text: string; kind: StatusKind } | undefined>>({});
 
@@ -36,6 +42,8 @@ export default function BorrowPage() {
     getStbtcBalance(wallet.address).then(setStbtcBalance).catch(() => setStbtcBalance(null));
     getSuppliedStbtc(wallet.address).then(setSuppliedStbtc).catch(() => setSuppliedStbtc(null));
     getBtcUsdPrice().then(setBtcUsdPrice).catch(() => setBtcUsdPrice(null));
+    getUsdcBalance(wallet.address).then(setUsdcBalance).catch(() => setUsdcBalance(null));
+    hasOutstandingUsdcDebt(wallet.address).then(setHasDebt).catch(() => setHasDebt(null));
   }, [wallet.address]);
 
   useEffect(() => {
@@ -81,6 +89,31 @@ export default function BorrowPage() {
     }
   }
 
+  async function handleRepay() {
+    if (!wallet.address) return;
+    setBusy("repay");
+    try {
+      const amountUsdc = BigInt(Math.round(Number(repayAmount) * 1_000_000));
+      await repayUsdc(amountUsdc, wallet.address);
+      setMessage(
+        "repay",
+        "Submitted to Zest! Repaying more than you owe is safe - it only ever takes what you actually owe.",
+        "success"
+      );
+      setRepayAmount("");
+      refresh();
+    } catch (err) {
+      setMessage("repay", err instanceof Error ? err.message : "Something went wrong.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function handleRepayMax() {
+    if (usdcBalance === null) return;
+    setRepayAmount((Number(usdcBalance) / 1_000_000).toString());
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center bg-background">
       <div className="w-full max-w-4xl px-4 py-10 sm:px-6">
@@ -115,6 +148,13 @@ export default function BorrowPage() {
                 exact on-chain calculation - so use it as a guide for what to type below, not a
                 guarantee. Zest&apos;s own contract enforces the real limit when you actually borrow.
               </p>
+              {hasDebt !== null && (
+                <div className="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-foreground/90">
+                  {hasDebt
+                    ? "You have an active USDC loan on Zest - see Repay below."
+                    : "You have no outstanding USDC loan on Zest right now."}
+                </div>
+              )}
             </Card>
 
             <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
@@ -152,6 +192,31 @@ export default function BorrowPage() {
                   <p className="mt-3 text-xs text-muted">
                     Borrowing too much against too little collateral risks liquidation - Zest enforces
                     this on-chain and will reject an unsafe borrow.
+                  </p>
+                </Card>
+              </div>
+
+              <div className="flex-1">
+                <Card title="Repay USDC" step={3}>
+                  <p className="mb-3 text-xs text-muted">
+                    Your USDC balance:{" "}
+                    <span className="font-medium text-foreground">
+                      {usdcBalance === null ? "..." : `$${(Number(usdcBalance) / 1_000_000).toFixed(2)}`}
+                    </span>
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <TextInput value={repayAmount} onChange={setRepayAmount} placeholder="Amount in USDC, e.g. 50" />
+                    <SecondaryButton disabled={usdcBalance === null} onClick={handleRepayMax}>
+                      Use full balance
+                    </SecondaryButton>
+                    <PrimaryButton disabled={busy === "repay" || !repayAmount} onClick={handleRepay}>
+                      {busy === "repay" ? "Submitting..." : "Repay"}
+                    </PrimaryButton>
+                  </div>
+                  {messages["repay"] && <Status {...messages["repay"]!} />}
+                  <p className="mt-3 text-xs text-muted">
+                    Safe to overpay - Zest only ever takes what you actually owe, so typing more than
+                    your debt (like your full balance) just clears it, nothing is wasted.
                   </p>
                 </Card>
               </div>
