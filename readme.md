@@ -57,13 +57,12 @@ This is a meaningfully smaller build than the original spec: no leverage contrac
         │                      Clarity contracts                      │
         │                                                              │
         │  bitmax-vault.clar ──────► StackingDAO (stake sBTC→stBTC)   │
-        │        │                                                     │
-        │        │ tracks boosted stBTC entitlement per depositor      │
+        │                                                              │
+        │  ve-stx-lock.clar ───────► StackingDAO Dual Stacking pool    │
+        │        │ (locked STX pooled, earns real BTC-denom. reward)   │
         │        ▼                                                     │
-        │  ve-stx-lock.clar (STX lock → decaying weight)               │
-        │        │                                                     │
-        │        ▼                                                     │
-        │  bitmax-boost-distributor.clar (epoch accounting)            │
+        │  bitmax-boost-distributor.clar (claims + pays sBTC to        │
+        │        lockers only, weighted by locked-STX weight)          │
         └───────────────────────┬──────────────────────────────────────┘
                                  │ epoch trigger (permissionless)
                                  ▼
@@ -105,8 +104,8 @@ The key architectural decision from section 1: **BitMax never custodies stBTC pa
 ## 6. Contracts to write
 
 - **`bitmax-vault.clar`** — holds each depositor's sBTC-in-flight and stBTC-out balance; calls StackingDAO's stake/unstake functions; issues an internal accounting balance (not a transferable token) representing "stBTC earned, boost-adjusted." Tracks **`amount`** (full boosted entitlement) and **`principal`** (money actually deposited, untouched by boost credits) separately per depositor — the gap between them is exactly the "yield earned" the dashboard shows. Redemption draws principal down too (saturating at zero), so principal never exceeds the current balance.
-- **`ve-stx-lock.clar`** — locks raw STX for a chosen duration; issues a non-transferable, time-decaying weight per depositor (Curve-style veToken pattern: `weight = amount_locked * (unlock_block - current_block) / max_lock_duration`).
-- **`bitmax-boost-distributor.clar`** — at each epoch, reads total stBTC yield accrued in `bitmax-vault.clar` and each depositor's `ve-stx-lock` weight, computes and credits each depositor's boosted share (a zero-sum redistribution: boosted depositors get more than flat pro-rata, unboosted depositors get less).
+- **`ve-stx-lock.clar`** — locks raw STX for a chosen duration; issues a non-transferable, time-decaying weight per depositor (Curve-style veToken pattern: `weight = amount_locked * (unlock_block - current_block) / max_lock_duration`). Locked STX isn't left idle: every lock pools its STX into StackingDAO's real Dual Stacking product (stSTXbtc), earning a genuinely additional BTC-denominated reward on top of ordinary STX stacking.
+- **`bitmax-boost-distributor.clar`** — at each epoch, claims the BTC-denominated Dual Stacking reward earned on all pooled locked STX and pays it out in sBTC to lockers only, split purely by `ve-stx-lock` weight. This is additive yield, not a redistribution of `bitmax-vault`'s base stBTC yield — depositors who never lock STX are unaffected either way, so there's no "unboosted depositors get less" tradeoff. See section 4's writeup for why the original balance-redistribution design was replaced.
 - **Redeem path** (a function on `bitmax-vault.clar`, not a separate contract) — lets a depositor redeem their current boosted stBTC balance to a real, freely-transferable stBTC balance in their own wallet at any time, so they can independently supply it to Zest or anywhere else stBTC is accepted.
 
 No leverage contract, no Bitflow-routing contract — both dropped along with the leverage-loop feature (section 1).
@@ -134,8 +133,8 @@ Confirmed directly from Zest's own deployed source (`github.com/Zest-Protocol/ze
 
 1. User deposits BTC → sBTC peg-in (standard sBTC flow).
 2. User deposits sBTC into `bitmax-vault.clar`, which stakes it via StackingDAO → stBTC accrues to the vault, tracked per-depositor.
-3. *(Optional)* user locks STX in `ve-stx-lock.clar` for a chosen duration → receives a decaying weight.
-4. Each epoch, `bitmax-boost-distributor.clar` totals real stBTC yield and redistributes it weighted by `ve-stx-lock` balance.
+3. *(Optional)* user locks STX in `ve-stx-lock.clar` for a chosen duration → receives a decaying weight, and their STX is pooled into StackingDAO's real Dual Stacking product for the duration of the lock.
+4. Each epoch, `bitmax-boost-distributor.clar` claims the Dual Stacking reward earned on all pooled locked STX and pays it out in sBTC to lockers only, weighted by `ve-stx-lock` weight.
 5. User redeems some or all of their boosted stBTC balance to a plain wallet balance at any time.
 6. *(Off-platform)* user optionally supplies that stBTC to Zest Protocol to borrow USDCx — BitMax's dashboard can deep-link to Zest's app for this; no contract call on BitMax's side.
 7. Withdrawal: unstake stBTC → sBTC via StackingDAO → sBTC peg-out to native BTC.
@@ -261,16 +260,20 @@ Built and tested against three mock contracts rather than StackingDAO's real one
 
 18/18 Vitest tests passing across `ve-stx-lock` + `bitmax-vault` (including a dedicated principal-vs-yield test), `clarinet check` clean. Swap the three mocks for StackingDAO's real contract principal once it's live on testnet — `bitmax-vault.clar`'s own logic shouldn't need to change, only the `contract-call?` targets.
 
-### Phase 4 — `bitmax-boost-distributor.clar` (done)
+### Phase 4 — `bitmax-boost-distributor.clar` (done, redesigned — see below)
 
-Clarity has no native map/list enumeration, so depositors must self-`register` into a bounded participant list (`MAX-PARTICIPANTS u200` — an explicit MVP scale limit, not an oversight; a production version would need a different accounting pattern, e.g. Curve-style lazy per-user checkpoints, to scale past a few hundred depositors) before an epoch close will include them.
+**Original design (superseded):** epoch close computed `real stBTC held by the vault` minus `sum of all registered participants' tracked balances` and called that "yield," then redistributed it to depositors weighted by locked-STX share. Two problems surfaced on review: (1) this only works against mocks — the real StackingDAO `stbtc-token` uses an *appreciating exchange rate*, not token-count growth, so "real held minus tracked" would compute zero against the real contract; (2) it's a **zero-sum redistribution** of the vault's own base yield — boosted depositors get more only because unboosted depositors get less, which means an unboosted depositor is strictly better off depositing the same sBTC somewhere else. Neither problem is fixable by tuning the formula; the yield source itself had to change.
 
-- `register ()` — adds the caller to the participant list, idempotently.
-- `close-epoch ()` — permissionless, gated to once per `EPOCH-LENGTH` (~1 day) via a block-height check. Computes `real stBTC held by the vault` minus `sum of all registered participants' tracked balances` as the epoch's yield, then credits each participant a **boosted share**: `balance(i) * (1 + BOOST-FACTOR * weight-share(i))`, normalized against the same sum for everyone else — i.e. a bonus on top of flat pro-rata proportional to each participant's *fraction* of total `ve-stx-lock` weight, not raw locked units. (Weight is in STX units, balance is in sats — wildly different scales — so the formula works in normalized shares, never adding the two directly. See the contract's header comment for the exact reasoning.)
-- Integer-division rounding means the sum credited each epoch can fall a few units short of the true total (never over) — the dust is simply left uncredited in the vault rather than redistributed, a deliberate simplicity tradeoff.
-- `BOOST-FACTOR` (currently `u1`, meaning up to a 2x multiplier for someone holding 100% of all locked weight alone) is a tunable placeholder constant, not derived from any external precedent — expect to revisit once real usage data exists.
+**Current design:** the boost is now funded by a genuinely additive yield source instead of a cut of the base rate. Locked STX isn't left idle in `ve-stx-lock.clar` — every lock immediately pools its STX into `mock-ststxbtc-pool.clar` (standing in for StackingDAO's real **stSTXbtc** product, confirmed via their own deployed source at `github.com/StackingDAO/stackingdao-smart-contracts`: `stacking-dao-core-ststxbtc-v2.deposit` has no caller restriction, so a single contract can pool many lockers' STX and act as one depositor). That pooled STX earns real Dual Stacking rewards, paid out via a separate BTC-denominated claim mechanism (`ststxbtc-tracking-v2.claim-pending-rewards` in the real contract) rather than through the token itself appreciating.
 
-4 tests covering: idempotent registration, flat pro-rata when no one has locked STX, epoch-too-soon rejection, and a boosted-vs-unboosted depositor split. All 22 tests across the three contracts pass; `clarinet check` clean on all 7.
+- `register ()` — adds the caller to the participant list, idempotently. Unchanged from the original design.
+- `close-epoch ()` — permissionless, gated to once per `EPOCH-LENGTH` (~1 day). Reads the sBTC currently claimable from `mock-ststxbtc-pool`, claims it, and pays it out **directly in sBTC** to registered participants — split purely by `ve-stx-lock` weight, nothing else. Participants with no active lock (weight `u0`) get nothing; there's no flat pro-rata component anymore, because there's no shared pot being divided among everyone — only lockers generated this yield, so only lockers receive it.
+- This is a deliberate simplification from the original plan (which staked the claimed sBTC into stBTC and credited `bitmax-vault` balances via its `increase-balance` hook): distributing raw sBTC straight to each locker's own wallet needs no vault-balance accounting at all, and doesn't conflate "your deposit's base yield" with "your locking boost" in the same number.
+- Integer-division rounding means the sum paid out each epoch can fall a few units short of the true claimed total (never over) — the dust is simply left sitting in the distributor contract's own sBTC balance, a deliberate simplicity tradeoff.
+
+Known gap this mock leaves open: the real `stacking-dao-core-ststxbtc-v2` withdrawal flow has a two-step, cooldown-gated unbonding process (`init-withdraw` → wait → `withdraw`, via an NFT receipt) — `mock-ststxbtc-pool.withdraw` is instant. `ve-stx-lock.clar`'s own `unlock-stx` still has its own `unlock-height` gate, but doesn't yet simulate the *additional* real-world unbonding delay on top of it.
+
+11 tests covering: idempotent registration, zero payout when nobody has locked STX, epoch-too-soon rejection, and a weight-proportional split across a locked/locked/never-locked trio (7 more covering `mock-ststxbtc-pool.clar`'s deposit/withdraw/claim-rewards/accrue-yield directly). All 29 tests across the four contracts pass; `clarinet check` clean on all 8.
 
 **A real gotcha worth flagging for anyone continuing this build:** the Clarinet JS SDK's Vitest integration snapshots and rolls back simnet state *per individual `it()` block*, not once per test file. Tests that assume state carries over from a previous `it` (e.g. "close an epoch, then in the next test try to close it again too soon") will silently start from a fresh chain and fail in confusing ways — every test that depends on prior mutations needs to set that state up itself, from scratch, inside itself.
 

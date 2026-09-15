@@ -5,6 +5,20 @@
 ;; description: Non-transferable, non-custodial-beyond-lock-duration. A
 ;;   depositor locks raw STX for a chosen duration; weight decays linearly
 ;;   to zero at unlock-height, at which point the STX can be withdrawn.
+;;
+;;   Locked STX is not left idle: every lock immediately pools its STX into
+;;   mock-ststxbtc-pool (a stand-in for StackingDAO's real stSTXbtc
+;;   product - see that contract's header for why this works: `deposit`
+;;   there has no caller restriction, so ve-stx-lock can pool many lockers'
+;;   STX into one call and act as a single depositor, exactly the way
+;;   StackingDAO's own liquid-staking products already pool many users).
+;;   That STX earns real Dual Stacking rewards while locked, which
+;;   bitmax-boost-distributor claims and distributes as the boost - this
+;;   is what makes boosting additive (new yield from the locked STX) rather
+;;   than a redistribution of other depositors' base sBTC yield. See
+;;   readme.md for the full reasoning and the real-contract gaps this mock
+;;   leaves open (StackingDAO's actual withdrawal flow has a cooldown this
+;;   mock doesn't simulate).
 
 ;; constants
 
@@ -46,6 +60,7 @@
     (asserts! (>= duration MIN-LOCK-DURATION) ERR-LOCK-TOO-SHORT)
     (asserts! (<= duration MAX-LOCK-DURATION) ERR-LOCK-TOO-LONG)
     (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    (try! (as-contract (contract-call? .mock-ststxbtc-pool deposit amount)))
     (map-set locks { owner: tx-sender } {
       amount: amount,
       created-at: stacks-block-height,
@@ -55,7 +70,10 @@
   )
 )
 
-;; Withdraw STX after unlock-height has passed, clearing the lock.
+;; Withdraw STX after unlock-height has passed, clearing the lock. Pulls
+;; the locker's STX back out of the pool first - the real StackingDAO
+;; withdrawal this mock stands in for has its own unbonding cooldown on
+;; top of this contract's own unlock-height, not simulated here yet.
 (define-public (unlock-stx)
   (let (
       (owner tx-sender)
@@ -63,6 +81,7 @@
     )
     (asserts! (>= stacks-block-height (get unlock-height lock)) ERR-NOT-YET-UNLOCKED)
     (map-delete locks { owner: owner })
+    (try! (as-contract (contract-call? .mock-ststxbtc-pool withdraw (get amount lock))))
     (as-contract (stx-transfer? (get amount lock) tx-sender owner))
   )
 )

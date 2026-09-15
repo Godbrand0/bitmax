@@ -187,22 +187,25 @@ export default function DocsPage() {
             <div id="boosting" className="scroll-mt-24 flex flex-col gap-3 text-muted">
               <p>
                 Everyone who deposits earns Bitcoin Staking rewards at the same base rate. Locking STX
-                in <code className="text-xs">ve-stx-lock</code> doesn&apos;t create extra yield out of
-                nowhere - it redistributes the vault&apos;s real, already-earned rewards. Each epoch,{" "}
-                <code className="text-xs">bitmax-boost-distributor</code> totals the vault&apos;s
-                actual stBTC yield and splits it so that depositors with a bigger locked-STX weight
-                (relative to everyone else&apos;s) get more than a flat, even split, and depositors
-                who haven&apos;t locked anything get correspondingly less.
+                in <code className="text-xs">ve-stx-lock</code> doesn&apos;t touch that base rate at
+                all - instead, every locker&apos;s STX is pooled and paired into StackingDAO&apos;s real
+                Dual Stacking product, which pays a separate, genuinely additional BTC-denominated
+                reward on top of ordinary STX stacking. Each epoch,{" "}
+                <code className="text-xs">bitmax-boost-distributor</code> claims that reward and pays
+                it out in sBTC to lockers only, split purely by locked-STX weight - it is new yield
+                that only exists because the STX was locked, not a cut of anyone&apos;s base deposit
+                yield.
               </p>
               <p>
                 Weight decays linearly toward your unlock height (a Curve-style vote-escrow curve):
                 locking more STX, or locking for longer, both increase your weight. You get the STX
-                back in full once your chosen lock duration ends - the boost is a redistribution of
-                yield, never a fee taken from your locked STX itself.
+                back in full once your chosen lock duration ends - the boost pays out separately in
+                sBTC, never as a fee taken from your locked STX itself.
               </p>
               <p>
-                This mechanism doesn&apos;t exist anywhere else on Stacks yet - it&apos;s the reason
-                BitMax exists as its own product, not a feature bolted onto a plain savings vault.
+                Because the boost is funded by a new yield source rather than skimmed from the base
+                rate, depositors who never lock STX are never worse off than depositing the same sBTC
+                elsewhere - locking is strictly additive, not a tax on staying unboosted.
               </p>
             </div>
           </Card>

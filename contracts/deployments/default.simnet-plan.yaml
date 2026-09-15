@@ -74,6 +74,21 @@ plan:
             path: contracts/mock-sbtc.clar
             clarity-version: 3
         - emulated-contract-publish:
+            contract-name: mock-ststxbtc-pool
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: contracts/mock-ststxbtc-pool.clar
+            clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: ve-stx-lock
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: contracts/ve-stx-lock.clar
+            clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: bitmax-boost-distributor
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: contracts/bitmax-boost-distributor.clar
+            clarity-version: 3
+        - emulated-contract-publish:
             contract-name: mock-stbtc
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
             path: contracts/mock-stbtc.clar
@@ -87,15 +102,5 @@ plan:
             contract-name: bitmax-vault
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
             path: contracts/bitmax-vault.clar
-            clarity-version: 3
-        - emulated-contract-publish:
-            contract-name: ve-stx-lock
-            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/ve-stx-lock.clar
-            clarity-version: 3
-        - emulated-contract-publish:
-            contract-name: bitmax-boost-distributor
-            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/bitmax-boost-distributor.clar
             clarity-version: 3
       epoch: "3.2"
