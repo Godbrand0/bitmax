@@ -9,6 +9,7 @@ import {
   getSuppliedStbtc,
   getUsdcBalance,
   hasOutstandingUsdcDebt,
+  removeStbtcCollateral,
   repayUsdc,
   supplyStbtcCollateral,
   ZEST_AVAILABLE,
@@ -29,6 +30,7 @@ export default function BorrowPage() {
   const [hasDebt, setHasDebt] = useState<boolean | null>(null);
 
   const [supplyAmount, setSupplyAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
   const [repayAmount, setRepayAmount] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,6 +71,26 @@ export default function BorrowPage() {
       refresh();
     } catch (err) {
       setMessage("supply", err instanceof Error ? err.message : "Something went wrong.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleWithdraw() {
+    if (!wallet.address) return;
+    setBusy("withdraw");
+    try {
+      const amountSats = btcToSats(withdrawAmount);
+      await removeStbtcCollateral(amountSats, wallet.address);
+      setMessage(
+        "withdraw",
+        "Submitted to Zest! Your stBTC will land back in your own wallet once confirmed.",
+        "success"
+      );
+      setWithdrawAmount("");
+      refresh();
+    } catch (err) {
+      setMessage("withdraw", err instanceof Error ? err.message : "Something went wrong.", "error");
     } finally {
       setBusy(null);
     }
@@ -179,6 +201,28 @@ export default function BorrowPage() {
                   </PrimaryButton>
                 </div>
                 {messages["supply"] && <Status {...messages["supply"]!} />}
+
+                {suppliedStbtc !== null && suppliedStbtc > 0n && (
+                  <div className="mt-5 border-t border-border pt-5">
+                    <p className="mb-3 text-xs font-semibold text-foreground">Withdraw collateral</p>
+                    <div className="flex flex-col gap-3">
+                      <TextInput
+                        value={withdrawAmount}
+                        onChange={setWithdrawAmount}
+                        placeholder="Amount of stBTC to withdraw"
+                      />
+                      <SecondaryButton disabled={busy === "withdraw" || !withdrawAmount} onClick={handleWithdraw}>
+                        {busy === "withdraw" ? "Submitting..." : "Withdraw to my wallet"}
+                      </SecondaryButton>
+                    </div>
+                    {messages["withdraw"] && <Status {...messages["withdraw"]!} />}
+                    <p className="mt-3 text-xs text-muted">
+                      Withdraws straight back to a plain stBTC balance in your own wallet. If you have
+                      an active loan, Zest will reject withdrawing more than keeps it safely
+                      collateralized - repay first for a full exit.
+                    </p>
+                  </div>
+                )}
               </Card>
 
               <Card title="Borrow USDC" step={2}>

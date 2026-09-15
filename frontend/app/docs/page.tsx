@@ -218,9 +218,12 @@ export default function DocsPage() {
               <p>
                 <strong className="text-foreground">Supply</strong> your stBTC as collateral,{" "}
                 <strong className="text-foreground">borrow</strong> USDC against it (Zest enforces the
-                real collateral limit on-chain and rejects an unsafe borrow), and{" "}
+                real collateral limit on-chain and rejects an unsafe borrow),{" "}
                 <strong className="text-foreground">repay</strong> whenever you want - repaying more
-                than you owe is safe, Zest only ever pulls exactly what&apos;s outstanding.
+                than you owe is safe, Zest only ever pulls exactly what&apos;s outstanding - and{" "}
+                <strong className="text-foreground">withdraw</strong> your stBTC back to your own
+                wallet at any time. Zest&apos;s own health check blocks a withdrawal that would leave
+                an active loan undercollateralized, so a full exit means repaying first.
               </p>
               <p>
                 The &quot;estimated available to borrow&quot; figure shown is exactly that - an

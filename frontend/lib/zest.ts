@@ -125,6 +125,59 @@ export async function repayUsdc(amountUsdc: bigint, senderAddress: string) {
   });
 }
 
+/**
+ * Removes `amountStbtc` (in real, underlying stBTC terms) of the caller's
+ * supplied collateral from Zest, redeeming it straight back to a plain
+ * stBTC balance in their own wallet - not the zstBTC vault-share token
+ * collateral is actually stored as (see getSuppliedStbtc's header comment
+ * for why collateral is keyed under asset id 13, not stBTC's own id 12).
+ *
+ * Uses `collateral-remove-redeem` rather than plain `collateral-remove`:
+ * traced through the source, the plain version would leave the caller
+ * holding zstBTC shares needing a separate v0-vault-stbtc.redeem call to
+ * become spendable stBTC - collateral-remove-redeem does both steps
+ * (`collateral-remove` then `vault-redeem`) in one transaction.
+ *
+ * Zest's own health check inside collateral-remove(-redeem) will reject
+ * this if it would leave an existing loan undercollateralized - callers
+ * with outstanding debt need to repay first (or partially) rather than
+ * this function pre-computing a "safe" amount itself.
+ */
+export async function removeStbtcCollateral(amountStbtc: bigint, senderAddress: string) {
+  const sharesCv = await fetchCallReadOnlyFunction({
+    contractAddress: ZEST_DEPLOYER,
+    contractName: ZEST_STBTC_ZTOKEN_VAULT,
+    functionName: "convert-to-shares",
+    functionArgs: [Cl.uint(amountStbtc)],
+    senderAddress,
+    network: NETWORK,
+  });
+  if (sharesCv.type !== "ok") {
+    throw new Error("could not resolve a share amount for this withdrawal");
+  }
+  const sharesInner = sharesCv.value;
+  if (sharesInner.type !== "uint") {
+    throw new Error("unexpected response converting stBTC to shares");
+  }
+  const shares = BigInt(sharesInner.value);
+
+  // 1% slippage tolerance on the underlying stBTC actually redeemed out,
+  // matching the same convention supplyStbtcCollateral uses for min-shares.
+  const minUnderlying = (amountStbtc * 99n) / 100n;
+
+  return submitSponsored({
+    contract: zestContract(ZEST_MARKET),
+    functionName: "collateral-remove-redeem",
+    functionArgs: [
+      Cl.principal(zestContract(ZEST_STBTC_ZTOKEN_VAULT)),
+      Cl.uint(shares),
+      Cl.uint(minUnderlying),
+      Cl.none(),
+      Cl.none(),
+    ],
+  });
+}
+
 /** The caller's real USDC wallet balance - resolved via Zest's own registry, not hardcoded. */
 export async function getUsdcBalance(account: string): Promise<bigint> {
   const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, account);
