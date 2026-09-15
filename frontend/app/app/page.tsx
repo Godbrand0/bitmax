@@ -152,7 +152,9 @@ export default function Dashboard() {
                 <span className="font-medium text-foreground">
                   {sbtcBalance === null ? "..." : `${satsToBtc(sbtcBalance)} sBTC`}
                 </span>
-                . Deposit it here - that deposit is what starts it earning, immediately.
+                . Deposited sBTC is staked via StackingDAO into stBTC and held for you by{" "}
+                <code className="text-xs">bitmax-vault</code> - that deposit is what starts it earning,
+                immediately.
               </p>
               <div className="flex flex-col gap-3">
                 <TextInput

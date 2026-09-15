@@ -270,10 +270,12 @@ export default function BorrowPage() {
 
             <Card title="Borrow against your balance">
               <p className="text-muted">
-                This talks directly to Zest Protocol&apos;s own lending contract, signed by your wallet -
-                BitMax never holds or routes these funds. Supply the stBTC you moved out in{" "}
-                <span className="font-medium text-foreground">Use your balance elsewhere</span>, then
-                borrow USDC against it without giving up your rewards.
+                This talks directly to Zest Protocol&apos;s own live lending market (
+                <code className="text-xs">v0-8-market</code>), signed by your wallet - BitMax never
+                holds or routes these funds. Supply the stBTC you moved out in{" "}
+                <span className="font-medium text-foreground">Use your balance elsewhere</span> as
+                collateral, and it&apos;s Zest&apos;s contract - not BitMax - that holds it and lets
+                you borrow USDC against it, without you giving up your BitMax rewards first.
               </p>
             </Card>
           </div>

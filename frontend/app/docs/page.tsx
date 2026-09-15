@@ -250,8 +250,8 @@ export default function DocsPage() {
                 action, and BitMax&apos;s own sponsor account covers the network fee.
               </p>
               <p>
-                BitMax itself charges no fee on top of that. Any yield redistribution from boosting is
-                zero-sum among depositors (see{" "}
+                BitMax itself charges no fee on top of that. The boost paid to lockers comes from a
+                real, additional Dual Stacking reward, not a cut of anyone&apos;s base yield (see{" "}
                 <a href="#boosting" className="font-medium text-brand hover:underline">
                   Boosting
                 </a>
@@ -313,7 +313,13 @@ export default function DocsPage() {
                     {
                       name: CONTRACTS.distributor,
                       principal: `${CONTRACT_DEPLOYER}.${CONTRACTS.distributor}`,
-                      purpose: "Each epoch, redistributes real yield weighted by boost.",
+                      purpose: "Each epoch, claims the Dual Stacking reward and pays it to lockers.",
+                    },
+                    {
+                      name: "mock-ststxbtc-pool",
+                      principal: `${CONTRACT_DEPLOYER}.mock-ststxbtc-pool`,
+                      purpose:
+                        "Devnet/testnet stand-in for StackingDAO's stSTXbtc - pools locked STX and accrues its Dual Stacking reward.",
                     },
                   ]}
                   unavailableNote={BITMAX_CONTRACTS_LIVE ? undefined : "Not a real deployment"}
@@ -352,6 +358,12 @@ export default function DocsPage() {
                       principal: "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.stacking-dao-core-stbtc-v1",
                       purpose: "StackingDAO's own deposit/withdraw entrypoint for stBTC.",
                     },
+                    {
+                      name: "stacking-dao-core-ststxbtc-v2",
+                      principal: "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.stacking-dao-core-ststxbtc-v2",
+                      purpose:
+                        "StackingDAO's real Dual Stacking pool for STX - mock-ststxbtc-pool stands in for this until it's wired up.",
+                    },
                   ]}
                 />
               </div>
@@ -380,11 +392,14 @@ export default function DocsPage() {
               </div>
 
               <p className="text-xs text-muted">
-                <code className="text-xs">bitmax-vault</code>&apos;s own staking calls currently target
-                a mock StackingDAO stand-in on devnet/testnet, not the real{" "}
-                <code className="text-xs">stacking-dao-core-stbtc-v1</code> contract above - the
+                <code className="text-xs">bitmax-vault</code>&apos;s own staking calls, and{" "}
+                <code className="text-xs">ve-stx-lock</code>&apos;s STX pooling, currently target mock
+                StackingDAO stand-ins on devnet/testnet, not the real{" "}
+                <code className="text-xs">stacking-dao-core-stbtc-v1</code> and{" "}
+                <code className="text-xs">stacking-dao-core-ststxbtc-v2</code> contracts above - the
                 Borrow page&apos;s stBTC balance display does read the real token contract, but the
-                vault&apos;s deposit flow hasn&apos;t been switched over yet.
+                vault&apos;s deposit flow and the boost&apos;s Dual Stacking pooling haven&apos;t been
+                switched over yet.
               </p>
             </div>
           </Card>

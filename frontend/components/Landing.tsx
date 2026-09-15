@@ -58,30 +58,63 @@ function ShieldIcon() {
   );
 }
 
+function ArrowIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted">
+      <path d="M5 12h14" />
+      <path d="M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 const HOW_IT_WORKS = [
   {
     icon: <DepositIcon />,
     title: "Deposit sBTC to start earning",
     detail:
-      "Already hold sBTC? Deposit it and it starts earning Bitcoin Staking rewards immediately - no separate peg-in step inside BitMax, no active management, no manual claiming.",
+      "Already hold sBTC? Deposit it into bitmax-vault and it's staked via StackingDAO immediately - no separate peg-in step inside BitMax, no active management, no manual claiming.",
   },
   {
     icon: <EarnIcon />,
     title: "Watch it grow",
     detail:
-      "Your balance grows automatically as staking rewards accrue - no claiming, no restaking, nothing to manage.",
+      "Your balance grows automatically as StackingDAO's Bitcoin Staking rewards accrue on the stBTC held for you - no claiming, no restaking, nothing to manage.",
   },
   {
     icon: <BoostIcon />,
     title: "Boost your rewards",
     detail:
-      "Lock STX for a while to pull a bigger share of the whole rewards pool toward you. This is the core of what BitMax does - not a side feature.",
+      "Lock STX and it's pooled into StackingDAO's real Dual Stacking product, earning a genuinely additional BTC reward that's paid out to lockers - new yield, not a cut of anyone's base rate.",
   },
   {
     icon: <BorrowIcon />,
     title: "Borrow against it",
     detail:
-      "Move your balance out whenever you want and borrow USDC against it on Zest, directly inside BitMax - no separate app, no giving up your rewards first.",
+      "Move your balance out whenever you want and supply that stBTC as collateral to borrow USDC on Zest Protocol's live market - directly inside BitMax, no separate app.",
+  },
+];
+
+const FUND_FLOWS = [
+  {
+    icon: <DepositIcon />,
+    title: "Your sBTC",
+    path: ["sBTC deposit", "bitmax-vault", "staked via StackingDAO", "stBTC (redeemable anytime)"],
+    detail:
+      "Deposited sBTC is staked into StackingDAO's stBTC through bitmax-vault.clar, which tracks how much you put in versus how much you've earned. Redeem some or all of it back to a plain stBTC balance in your own wallet whenever you want - BitMax never locks this.",
+  },
+  {
+    icon: <BoostIcon />,
+    title: "Your locked STX",
+    path: ["STX lock", "pooled into StackingDAO Dual Stacking", "BTC reward claimed each epoch", "paid to you in sBTC"],
+    detail:
+      "Locked STX doesn't sit idle - ve-stx-lock.clar pools every locker's STX into StackingDAO's real Dual Stacking product. bitmax-boost-distributor.clar claims the BTC-denominated reward that pool earns and pays it out in sBTC to lockers, split by locked weight. It's new yield the base rate never had, not a redistribution among depositors.",
+  },
+  {
+    icon: <BorrowIcon />,
+    title: "Your stBTC, borrowed against",
+    path: ["stBTC", "supplied as collateral to Zest Protocol", "borrow USDC", "repay or withdraw anytime"],
+    detail:
+      "On the Borrow page, your stBTC is supplied directly to Zest Protocol's own live lending market (v0-8-market) as collateral. BitMax constructs the call but your wallet signs it - Zest's contract holds the collateral and enforces the borrow limit, not BitMax.",
   },
 ];
 
@@ -92,15 +125,15 @@ const FAQ = [
   },
   {
     q: "Do I have to lock STX?",
-    a: "No - depositing and earning the base rate works without locking anything. Locking STX is how you boost your share of the rewards pool, and it's the mechanism that makes BitMax different from just staking on your own, but it's your choice.",
+    a: "No - depositing and earning the base rate works without locking anything, and not locking never costs you anything either. The boost is a separate, additional BTC reward stream funded by pairing locked STX into real Dual Stacking - it's extra yield for lockers, not a share taken from everyone else's base rate.",
   },
   {
     q: "What happens to my STX after I lock it?",
-    a: "It stays locked for the duration you chose (2 weeks up to 2 years) and you get it back in full once the lock ends. The boost is a bonus on your Bitcoin rewards, not a fee taken from your STX.",
+    a: "It stays locked for the duration you chose (2 weeks up to 2 years) and you get it back in full once the lock ends. The boost pays out separately in sBTC - it's never a fee taken from your locked STX.",
   },
   {
     q: "What can I borrow against my balance?",
-    a: "USDC, borrowed directly from Zest Protocol's own lending market - BitMax calls Zest's real contract on your behalf, signed by your own wallet. Borrowing too much against too little collateral is rejected on-chain, the same as using Zest directly.",
+    a: "USDC, borrowed directly from Zest Protocol's own lending market against your stBTC as collateral - BitMax calls Zest's real contract on your behalf, signed by your own wallet. Borrowing too much against too little collateral is rejected on-chain, the same as using Zest directly.",
   },
   {
     q: "What network does this run on?",
@@ -137,13 +170,13 @@ export function Landing() {
       {/* Hero */}
       <div className="text-center">
         <Badge>Built on Stacks · Secured by Bitcoin</Badge>
-        <h1 className="mx-auto mt-4 max-w-lg text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Grow your Bitcoin, simply.
+        <h1 className="mx-auto mt-4 max-w-xl text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
+          Put your Bitcoin to work, without handing it over.
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-muted">
-          Deposit sBTC, earn real staking rewards automatically, boost your share by locking STX, and
-          borrow against your growing balance - all from one dashboard, without giving up custody of
-          your yield.
+        <p className="mx-auto mt-4 max-w-lg text-muted sm:text-base">
+          Deposit sBTC and earn real Bitcoin Staking rewards automatically. Lock STX to unlock a
+          second, genuinely additional BTC reward from real Dual Stacking. Borrow against your
+          balance on Zest whenever you want - all non-custodial, all from one dashboard.
         </p>
         <div className="mt-6 flex flex-col items-center gap-3">
           <button
@@ -153,8 +186,8 @@ export function Landing() {
           >
             {ctaLabel}
           </button>
-          <a href="#how-it-works" className="text-xs font-medium text-muted hover:text-foreground">
-            See how it works &darr;
+          <a href="#fund-flows" className="text-xs font-medium text-muted hover:text-foreground">
+            See exactly where your funds go &darr;
           </a>
         </div>
 
@@ -167,6 +200,39 @@ export function Landing() {
               <ShieldIcon />
               {label}
             </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Where your funds go */}
+      <div id="fund-flows" className="scroll-mt-20">
+        <h2 className="text-center text-xl font-bold text-foreground">Where your funds actually go</h2>
+        <p className="mx-auto mt-2 max-w-lg text-center text-sm text-muted">
+          Nothing here is a black box - every step below is a specific contract call, signed by
+          your own wallet. Here's exactly what happens to your sBTC, your locked STX, and any
+          stBTC you borrow against.
+        </p>
+        <div className="mt-6 flex flex-col gap-4">
+          {FUND_FLOWS.map((flow) => (
+            <div key={flow.title} className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <IconCircle>{flow.icon}</IconCircle>
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground">{flow.title}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-xs font-medium text-muted">
+                    {flow.path.map((step, i) => (
+                      <span key={step} className="flex items-center gap-1.5">
+                        {i > 0 && <ArrowIcon />}
+                        <span className="rounded-full border border-border bg-surface-muted px-2.5 py-1 text-foreground/90">
+                          {step}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-muted">{flow.detail}</p>
+            </div>
           ))}
         </div>
       </div>
@@ -200,14 +266,16 @@ export function Landing() {
             <BoostIcon />
           </IconCircle>
           <div>
-            <h2 className="text-lg font-bold text-foreground">Boosting is what BitMax is about</h2>
+            <h2 className="text-lg font-bold text-foreground">Boosting is additive, not a redistribution</h2>
             <p className="mt-2 text-sm text-muted">
-              Everyone earns Bitcoin Staking rewards on their balance. Locking STX shifts a bigger
-              share of the whole rewards pool toward you - the longer you lock, the bigger your
-              share. It&apos;s a zero-sum redistribution: boosted depositors earn more than a flat,
-              even split; depositors who don&apos;t lock earn a little less. This vote-escrow-style
-              mechanism doesn&apos;t exist anywhere else on Stacks yet - it&apos;s the reason BitMax
-              exists, not an add-on bolted onto a savings product.
+              Everyone earns the same Bitcoin Staking rewards on their balance, whether they lock
+              STX or not. Locking STX pools it into StackingDAO's real Dual Stacking product, which
+              pays a separate, genuinely additional BTC reward on top of ordinary STX stacking -
+              BitMax claims that reward each epoch and pays it out in sBTC to lockers, weighted by
+              how much and how long they locked. It's new yield that only exists because the STX
+              was locked, so depositors who never lock are never worse off than depositing the same
+              sBTC anywhere else. This vote-escrow-style mechanism, funded by a real yield source
+              instead of skimmed from other depositors, doesn't exist anywhere else on Stacks yet.
             </p>
           </div>
         </div>
@@ -222,10 +290,11 @@ export function Landing() {
           <div>
             <h2 className="text-lg font-bold text-foreground">Borrow without leaving</h2>
             <p className="mt-2 text-sm text-muted">
-              Once your balance is growing, move it to your own wallet whenever you want and borrow
-              USDC against it on Zest Protocol - right inside BitMax. This talks directly to Zest's
-              own lending contract, signed by your wallet; BitMax never holds or routes the funds
-              itself.
+              Once your balance is growing, move it to your own wallet whenever you want and supply
+              that stBTC as collateral to borrow USDC on Zest Protocol's real lending market - right
+              inside BitMax. This talks directly to Zest's own contract, signed by your wallet; Zest
+              holds the collateral and enforces the borrow limit, and BitMax never holds or routes
+              the funds itself.
             </p>
           </div>
         </div>

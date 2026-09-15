@@ -85,10 +85,11 @@ export default function BoostPage() {
           <div className="flex flex-col gap-6">
             <Card title="Boosting is what BitMax is about">
               <p className="text-muted">
-                Everyone earns staking rewards on their Bitcoin-backed balance. Locking STX shifts a
-                bigger share of the whole reward pool toward you - the longer you lock, the bigger your
-                share. This isn&apos;t a side feature: it&apos;s the mechanism that makes BitMax different
-                from just staking on your own.
+                Everyone earns the same Bitcoin Staking rewards on their balance, locked or not.
+                Locking STX pools it into StackingDAO&apos;s real Dual Stacking product, which earns a
+                separate, genuinely additional BTC reward - BitMax claims that reward each epoch and
+                pays it to you in sBTC, weighted by how much and how long you locked. It&apos;s new
+                yield your base rate never had, not a cut of anyone else&apos;s.
               </p>
             </Card>
 
@@ -99,7 +100,8 @@ export default function BoostPage() {
                 <div className="mt-5 rounded-xl bg-surface-muted p-4 text-sm text-foreground/90">
                   <p>
                     You have <strong>{(Number(lock.amount) / 1_000_000).toString()} STX</strong> locked,
-                    unlocking at block {lock.unlockHeight.toString()}.
+                    pooled into StackingDAO&apos;s Dual Stacking product and unlocking at block{" "}
+                    {lock.unlockHeight.toString()}.
                   </p>
                   {isUnlockable ? (
                     <div className="mt-3">
@@ -117,8 +119,9 @@ export default function BoostPage() {
             {!isLocked && (
               <Card title="Lock STX to boost your rewards">
                 <p className="mb-3 text-muted">
-                  Choose how much STX to lock and for how long. You get the STX back once the lock ends -
-                  the boost is a bonus on your rewards, not a fee.
+                  Choose how much STX to lock and for how long. Your STX gets pooled into real Dual
+                  Stacking and earns a genuinely additional BTC reward, paid to you in sBTC each epoch -
+                  you get the STX itself back in full once the lock ends, never touched as a fee.
                 </p>
                 <div className="flex flex-col gap-3">
                   <TextInput value={lockAmount} onChange={setLockAmount} placeholder="Amount in STX, e.g. 100" />
