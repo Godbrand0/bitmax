@@ -10,6 +10,7 @@ import {
   getSbtcBalance,
   getVaultBalance,
   getVaultPrincipal,
+  getVaultStbtcOwned,
   redeemStbtc,
   VAULT_AVAILABLE,
 } from "@/lib/vault";
@@ -60,13 +61,21 @@ export default function Dashboard() {
   const wallet = useWallet();
   const [vaultBalance, setVaultBalance] = useState<bigint | null>(null);
   const [vaultPrincipal, setVaultPrincipal] = useState<bigint | null>(null);
+  // Raw stBTC owned - what redeem() actually operates on, distinct from
+  // vaultBalance's live sBTC-equivalent value. Withdraw always redeems this
+  // exact figure in full: reading, displaying, and submitting the same raw
+  // number end to end means there's no "type an amount close to the max"
+  // step where those two different units could ever be confused - vaultBalance
+  // is always a little larger than this once any yield has accrued (1 stBTC
+  // is worth more than 1 sBTC), so using it here would ask the contract to
+  // redeem slightly more than is actually owned and revert every time.
+  const [stbtcOwned, setStbtcOwned] = useState<bigint | null>(null);
   const [sbtcBalance, setSbtcBalance] = useState<bigint | null>(null);
   const [weight, setWeight] = useState<bigint>(0n);
   const [boostEarned, setBoostEarned] = useState<bigint | null>(null);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 
   const [startEarningAmount, setStartEarningAmount] = useState("");
-  const [redeemAmount, setRedeemAmount] = useState("");
 
   const [busy, setBusy] = useState<string | null>(null);
   const [messages, setMessages] = useState<
@@ -80,15 +89,17 @@ export default function Dashboard() {
   const refresh = useCallback(async () => {
     if (!wallet.address) return;
     try {
-      const [balance, principal, w, sbtc, boost] = await Promise.all([
+      const [balance, principal, owned, w, sbtc, boost] = await Promise.all([
         getVaultBalance(wallet.address),
         getVaultPrincipal(wallet.address),
+        getVaultStbtcOwned(wallet.address),
         getLockWeight(wallet.address),
         getSbtcBalance(wallet.address),
         getLifetimeBoostPaid(wallet.address),
       ]);
       setVaultBalance(balance);
       setVaultPrincipal(principal);
+      setStbtcOwned(owned);
       setWeight(w);
       setSbtcBalance(sbtc);
       setBoostEarned(boost);
@@ -144,13 +155,17 @@ export default function Dashboard() {
   }
 
   async function handleRedeem() {
+    if (stbtcOwned === null || stbtcOwned === 0n) return;
     setBusy("redeem");
     try {
-      const amountSats = btcToSats(redeemAmount);
-      await redeemStbtc(amountSats);
+      // Always redeems the exact figure just read and shown - no typed
+      // amount, so there's no partial-withdraw path and no way to submit a
+      // number that drifted from what's actually owned by the time the
+      // wallet signs.
+      await redeemStbtc(stbtcOwned);
       setMessage(
         "redeem",
-        "Done! That amount is now a regular, freely-usable balance in your own wallet - head to Borrow to use it as collateral on Zest.",
+        "Done! That stBTC is now a regular, freely-usable balance in your own wallet - head to Borrow to use it as collateral on Zest.",
         "success"
       );
       await refresh();
@@ -364,30 +379,31 @@ export default function Dashboard() {
 
             <Card
               title="Withdraw"
-              subtitle="Withdraws as stBTC to your own wallet - a plain SIP-010 balance you can use anywhere, including as collateral on Zest. This isn't a Bitcoin peg-out."
+              subtitle="Withdraws your full balance as stBTC to your own wallet - a plain SIP-010 balance you can use anywhere, including as collateral on Zest. This isn't a Bitcoin peg-out."
               icon={<BorrowIcon size={16} />}
             >
               <div className="flex flex-col gap-4">
-                <AmountInput
-                  label="Amount to withdraw"
-                  value={redeemAmount}
-                  onChange={setRedeemAmount}
-                  placeholder="0.00"
-                  unit="stBTC"
-                  max={vaultBalance === null ? undefined : `${satsToBtc(vaultBalance)} stBTC`}
-                  onMax={
-                    vaultBalance === null ? undefined : () => setRedeemAmount(satsToBtc(vaultBalance))
-                  }
-                />
+                <div className="rounded-xl border border-border bg-surface-muted px-4 py-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    Available to withdraw
+                  </p>
+                  <p className="num mt-1 text-2xl font-semibold text-foreground">
+                    {stbtcOwned === null ? (
+                      <Skeleton className="h-7 w-32" />
+                    ) : (
+                      `${satsToBtc(stbtcOwned)} stBTC`
+                    )}
+                  </p>
+                </div>
                 <Button
                   full
                   size="lg"
                   variant="secondary"
                   loading={busy === "redeem"}
-                  disabled={!redeemAmount}
+                  disabled={stbtcOwned === null || stbtcOwned === 0n}
                   onClick={handleRedeem}
                 >
-                  {busy === "redeem" ? "Withdrawing" : "Withdraw to my wallet"}
+                  {busy === "redeem" ? "Withdrawing" : "Withdraw everything to my wallet"}
                 </Button>
               </div>
               {messages["redeem"] && <Status {...messages["redeem"]!} />}

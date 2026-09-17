@@ -107,7 +107,10 @@ const STEPS = [
     body: (
       <>
         Your balance accrues Bitcoin Staking rewards automatically. The Dashboard shows it split
-        into two numbers: how much you put in, and how much you&apos;ve earned on top.
+        into two numbers: how much you put in, and how much you&apos;ve earned on top - both in
+        sBTC. Under the hood, <code>bitmax-vault</code> actually holds stBTC, whose exchange rate
+        to sBTC rises over time as StackingDAO&apos;s rewards accrue; the Dashboard converts that
+        at the live rate so you only ever see sBTC, never stBTC.
       </>
     ),
   },

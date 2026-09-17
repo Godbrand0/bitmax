@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/lib/wallet";
 import {
   claimUnlock,
+  getLifetimeBoostPaid,
   getLock,
   getLockWeight,
   getPendingWithdrawal,
@@ -13,7 +14,7 @@ import {
   requestUnlock,
 } from "@/lib/vault";
 import { getBurnBlockHeight } from "@/lib/chain";
-import { LOCK_DURATION_PRESETS, stxToUstx } from "@/lib/format";
+import { LOCK_DURATION_PRESETS, satsToBtc, stxToUstx } from "@/lib/format";
 import { CONTRACT_DEPLOYER, CONTRACTS } from "@/lib/network";
 import { getContractCallHistory, parseUintRepr, type HistoryEntry } from "@/lib/history";
 import {
@@ -79,6 +80,7 @@ function formatBlocksAsDuration(blocks: number): string {
 export default function BoostPage() {
   const wallet = useWallet();
   const [weight, setWeight] = useState<bigint>(0n);
+  const [boostEarned, setBoostEarned] = useState<bigint>(0n);
   const [lock, setLock] = useState<{ amount: bigint; unlockHeight: bigint } | null>(null);
   const [pendingWithdrawal, setPendingWithdrawal] = useState<{
     amount: bigint;
@@ -98,16 +100,18 @@ export default function BoostPage() {
   const refresh = useCallback(async () => {
     if (!wallet.address) return;
     try {
-      const [w, l, pending, height] = await Promise.all([
+      const [w, l, pending, height, earned] = await Promise.all([
         getLockWeight(wallet.address),
         getLock(wallet.address),
         getPendingWithdrawal(wallet.address),
         getBurnBlockHeight(),
+        getLifetimeBoostPaid(wallet.address),
       ]);
       setWeight(w);
       setLock(l);
       setPendingWithdrawal(pending);
       setCurrentHeight(height);
+      setBoostEarned(earned);
     } catch {
       // Same network-unavailable case as the dashboard - non-fatal here.
     } finally {
@@ -280,6 +284,15 @@ export default function BoostPage() {
                 Your share of each epoch&apos;s boost is this weight divided by the total weight of
                 all lockers. More STX, or a longer lock, means a bigger boost.
               </p>
+
+              <div className="mt-5 rounded-lg bg-surface px-3.5 py-3">
+                <StatTile
+                  label="sBTC earned from your STX lock"
+                  value={!loaded ? <Skeleton className="h-5 w-24" /> : `+${satsToBtc(boostEarned)} sBTC`}
+                  tone="positive"
+                  hint="Lifetime total paid to your wallet each epoch, separate from lock status below."
+                />
+              </div>
 
               {isLocked ? (
                 <div className="mt-6 rounded-xl border border-border bg-surface-muted p-5">
