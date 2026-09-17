@@ -1,64 +1,481 @@
 @import "tailwindcss";
 
+/* ───────────────────────────── Design tokens ─────────────────────────────
+   BitMax's visual language: warm Bitcoin gold on a paper-cream ground in
+   light mode, deep bitumen in dark. Surfaces are layered (base → surface →
+   raised → sunken) so cards can sit on cards without losing definition,
+   which the old single-surface palette couldn't express.
+   ────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #faf8f5;
+  color-scheme: light;
+
+  /* Ground & surfaces */
+  --background: #f8f5f0;
+  --background-alt: #f2ede4;
   --surface: #ffffff;
-  --surface-muted: #f4f1ec;
-  --foreground: #1c1a17;
-  --muted: #6b6459;
-  --border: #e8e2d8;
+  --surface-raised: #ffffff;
+  --surface-muted: #f4f0e9;
+  --surface-sunken: #efe9df;
+
+  /* Ink */
+  --foreground: #17150f;
+  --foreground-soft: #423c31;
+  --muted: #736a5c;
+  --muted-strong: #574f43;
+
+  /* Lines */
+  --border: #e7e0d3;
+  --border-strong: #d8cfbd;
+
+  /* Brand - Bitcoin gold */
   --brand: #f7931a;
-  --brand-hover: #e17d0a;
-  --brand-soft: #fef1de;
-  --success: #16794f;
-  --success-soft: #e7f6ee;
-  --danger: #c5361f;
-  --danger-soft: #fbeae7;
+  --brand-hover: #e07c06;
+  --brand-active: #c46a02;
+  --brand-soft: #fdf0dc;
+  --brand-softer: #fef7ed;
+  --brand-ink: #7a4405;
+
+  /* Accent - a cool counterweight so gold reads as gold, not as "warning" */
+  --accent: #2f6fdb;
+  --accent-soft: #e6eefc;
+  --accent-ink: #17417f;
+
+  /* Semantic */
+  --success: #15764c;
+  --success-soft: #e4f4ec;
+  --danger: #bd3218;
+  --danger-soft: #fbe9e5;
+  --warning: #96650a;
+  --warning-soft: #fdf2da;
+
+  /* Elevation - warm-tinted so shadows sit in the palette, not on top of it */
+  --shadow-xs: 0 1px 2px rgba(60, 45, 20, 0.05);
+  --shadow-sm: 0 1px 3px rgba(60, 45, 20, 0.07), 0 1px 2px rgba(60, 45, 20, 0.04);
+  --shadow-md: 0 4px 12px rgba(60, 45, 20, 0.07), 0 1px 3px rgba(60, 45, 20, 0.05);
+  --shadow-lg: 0 12px 32px rgba(60, 45, 20, 0.1), 0 4px 10px rgba(60, 45, 20, 0.05);
+  --shadow-xl: 0 24px 60px rgba(60, 45, 20, 0.13), 0 8px 20px rgba(60, 45, 20, 0.06);
+  --shadow-glow: 0 0 0 1px rgba(247, 147, 26, 0.28), 0 8px 30px rgba(247, 147, 26, 0.18);
+
+  /* Motion - one easing vocabulary for the whole product */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --dur-slower: 720ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --background: #100e0b;
+    --background-alt: #16130f;
+    --surface: #1a1713;
+    --surface-raised: #221e19;
+    --surface-muted: #201c17;
+    --surface-sunken: #141110;
+
+    --foreground: #f6f1e8;
+    --foreground-soft: #ddd5c7;
+    --muted: #9c9284;
+    --muted-strong: #b8ae9e;
+
+    --border: #302a23;
+    --border-strong: #423a30;
+
+    --brand: #f7931a;
+    --brand-hover: #ffa63a;
+    --brand-active: #ffb75c;
+    --brand-soft: #35240f;
+    --brand-softer: #241a0d;
+    --brand-ink: #ffc987;
+
+    --accent: #6ea8fb;
+    --accent-soft: #16233c;
+    --accent-ink: #a9caff;
+
+    --success: #4ecf92;
+    --success-soft: #11291d;
+    --danger: #f9836a;
+    --danger-soft: #331612;
+    --warning: #e0aa4e;
+    --warning-soft: #2c2110;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-xl: 0 26px 68px rgba(0, 0, 0, 0.62), 0 8px 22px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 0 1px rgba(247, 147, 26, 0.35), 0 8px 34px rgba(247, 147, 26, 0.22);
+  }
+}
+
+/* Explicit light override, so a future theme toggle wins in both directions. */
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-alt: var(--background-alt);
   --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+
   --color-foreground: var(--foreground);
+  --color-foreground-soft: var(--foreground-soft);
   --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-softer: var(--brand-softer);
+  --color-brand-ink: var(--brand-ink);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-glow: var(--shadow-glow);
+
+  --ease-out: var(--ease-out);
+  --ease-spring: var(--ease-spring);
+
+  --animate-reveal: reveal var(--dur-slow) var(--ease-out) both;
+  --animate-float: float 7s var(--ease-in-out) infinite;
+  --animate-float-slow: float 11s var(--ease-in-out) infinite;
+  --animate-drift: drift 22s var(--ease-in-out) infinite alternate;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.6s var(--ease-out) infinite;
+  --animate-spin-slow: spin 18s linear infinite;
+  --animate-rise: rise 1.1s var(--ease-out) infinite;
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-dash: dash 2.2s linear infinite;
+  --animate-fade-in: fade-in var(--dur-base) var(--ease-out) both;
+  --animate-pop-in: pop-in var(--dur-base) var(--ease-spring) both;
+  --animate-sheen: sheen 5.5s var(--ease-in-out) infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #131110;
-    --surface: #1b1917;
-    --surface-muted: #221f1c;
-    --foreground: #f3efe9;
-    --muted: #9b9184;
-    --border: #322d28;
-    --brand: #f7931a;
-    --brand-hover: #ffa838;
-    --brand-soft: #3a2a13;
-    --success: #4ade80;
-    --success-soft: #163524;
-    --danger: #f87171;
-    --danger-soft: #3a1c19;
-  }
-}
+/* ───────────────────────────── Base ───────────────────────────── */
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
   background: var(--brand);
-  color: white;
+  color: #fff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Tabular, slightly tightened numerals everywhere money is shown. */
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+}
+
+/* Focus ring for elements that don't style their own focus state.
+   Form controls are deliberately excluded: they each define a brand border
+   plus an inset ring instead. An offset outline here would be drawn outside
+   the <input> box, which in an amount field ends exactly where the unit
+   suffix begins - so it painted over the "sBTC"/"USDC" label. Note this rule
+   is unlayered and would otherwise win over Tailwind's layered
+   `outline-none` utility regardless of specificity. */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Custom scrollbar, dark-mode aware. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  background-clip: content-box;
+}
+
+/* ───────────────────────────── Keyframes ───────────────────────────── */
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, -4%, 0) scale(1.12);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes sheen {
+  0%,
+  65% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Sats rising into the vault in the hero visual. */
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-42px) scale(1);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@keyframes grow-bar {
+  from {
+    transform: scaleY(0.04);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* ───────────────────────────── Utilities ───────────────────────────── */
+
+/* Scroll-reveal: hidden until <Reveal> flips data-shown, so content never
+   flashes in before it animates. Falls back to visible with no JS. */
+@utility reveal-init {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  transition:
+    opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+@utility reveal-shown {
+  opacity: 1;
+  transform: none;
+}
+
+/* Editorial display type. */
+@utility font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+
+/* Gradient text used sparingly on story headlines. */
+@utility text-gradient-brand {
+  /* inline-block + bottom padding: background-clip:text otherwise crops the
+     italic serif descenders at our tight display line-height. */
+  display: inline-block;
+  padding-bottom: 0.1em;
+  background-image: linear-gradient(
+    100deg,
+    var(--brand) 0%,
+    #ffb457 45%,
+    var(--brand) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Hairline grid used behind hero/footer for depth. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Card lift on hover - the single interaction that makes the product feel
+   physical. Paired with a border warm-up. */
+@utility lift {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out);
+  will-change: transform;
+}
+
+@utility lift-hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ───────────────────────── Reduced motion ─────────────────────────
+   Honour the OS setting: kill decorative loops and scroll reveals, but keep
+   opacity transitions so nothing becomes invisible or unreachable. */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal-init {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ───────────────────── Docs prose ─────────────────────
+   Inline code inside documentation gets a consistent chip treatment rather
+   than per-element utility classes at every call site. */
+
+.prose-docs code {
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  padding: 0.1em 0.38em;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.86em;
+  color: var(--foreground-soft);
+  white-space: nowrap;
+}
+
+.prose-docs strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.prose-docs a:not([class]) {
+  color: var(--brand);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
