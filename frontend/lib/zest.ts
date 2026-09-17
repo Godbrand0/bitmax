@@ -17,8 +17,11 @@ import { Cl, fetchCallReadOnlyFunction } from "@stacks/transactions";
 import { NETWORK, NETWORK_NAME } from "./network";
 import { submitSponsored } from "./sponsor";
 
-const ZEST_DEPLOYER = "SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7";
-const ZEST_MARKET = "v0-8-market" as const;
+// Exported so callers building their own reads against this exact contract
+// (e.g. the Borrow page's transaction-history panel) share one source of
+// truth for the address rather than duplicating the literal.
+export const ZEST_DEPLOYER = "SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7";
+export const ZEST_MARKET = "v0-8-market" as const;
 const ZEST_ASSETS_REGISTRY = "v0-assets" as const;
 const ZEST_MARKET_VAULT = "v0-market-vault" as const;
 const ZEST_STBTC_ZTOKEN_VAULT = "v0-vault-stbtc" as const;
@@ -27,6 +30,12 @@ const ZEST_STBTC_ZTOKEN_VAULT = "v0-vault-stbtc" as const;
 // (STX u0, sBTC u2, stSTX u4, USDC u6, USDH u8, stSTXbtc u10, stBTC u12) -
 // not guessed, and not the "z"-prefixed vault-share ids which are Zest's
 // internal representation, not what a caller passes in.
+//
+// Note: id 6's real token is USDCx (SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx),
+// confirmed via that contract's own get-symbol - not the plain USDC its
+// asset-id constant name suggests. Kept as `USDC` below only because that's
+// Zest's own constant name for this id; every user-facing string elsewhere
+// in this app says USDCx.
 export const ZEST_ASSET_IDS = {
   stBTC: 12,
   USDC: 6,
@@ -97,7 +106,7 @@ export async function supplyStbtcCollateral(
   });
 }
 
-/** Borrows `amountUsdc` against whatever collateral the caller already has supplied on Zest. */
+/** Borrows `amountUsdc` (in USDCx - see ZEST_ASSET_IDS's note) against whatever collateral the caller already has supplied on Zest. */
 export async function borrowUsdc(amountUsdc: bigint, senderAddress: string) {
   const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, senderAddress);
   return submitSponsored({
@@ -108,7 +117,7 @@ export async function borrowUsdc(amountUsdc: bigint, senderAddress: string) {
 }
 
 /**
- * Repays `amountUsdc` of the caller's own outstanding USDC debt on Zest.
+ * Repays `amountUsdc` of the caller's own outstanding USDCx debt on Zest.
  * Safe to overpay: traced through `repay` in `v0-8-market.clar` - it caps
  * the actual pull to `min(amount, real outstanding debt)` before ever
  * calling the SIP-010 transfer, so passing more than is owed just repays
@@ -178,7 +187,7 @@ export async function removeStbtcCollateral(amountStbtc: bigint, senderAddress: 
   });
 }
 
-/** The caller's real USDC wallet balance - resolved via Zest's own registry, not hardcoded. */
+/** The caller's real USDCx wallet balance - resolved via Zest's own registry, not hardcoded. */
 export async function getUsdcBalance(account: string): Promise<bigint> {
   const usdcContract = await resolveAssetContract(ZEST_ASSET_IDS.USDC, account);
   const [contractAddress, contractName] = usdcContract.split(".");
@@ -197,10 +206,10 @@ export async function getUsdcBalance(account: string): Promise<bigint> {
 }
 
 /**
- * Whether the caller currently has any outstanding USDC debt on Zest at
+ * Whether the caller currently has any outstanding USDCx debt on Zest at
  * all - a real, always-safe read (`debt-scaled` defaults to 0 rather than
  * panicking on a missing entry, unlike `get-collateral`). Deliberately
- * NOT converted to an exact USDC amount: that conversion needs the current
+ * NOT converted to an exact USDCx amount: that conversion needs the current
  * borrow index, which v0-8-market only caches when some other transaction
  * has already triggered accrual in the same block (`get-cached-indexes` is
  * keyed by the current block, and nothing refreshes it on a passive read)
@@ -223,21 +232,62 @@ export async function hasOutstandingUsdcDebt(account: string): Promise<boolean> 
 
 // --- "how much could I borrow?" estimate ---------------------------------
 //
-// Zest's own contract has no public read-only for this - the real capacity
-// calculation (collateral-add/borrow in v0-8-market.clar) is private and
-// needs live Pyth Lazer price feeds plus an egroup-mask-keyed LTV lookup
-// that isn't safely reproducible client-side (traced through the actual
-// source; there is no `get-max-borrow`-style helper exposed anywhere).
-// Rather than skip the feature or fake a number, this computes a clearly
-// labeled ESTIMATE from a public BTC/USD price and a conservative fixed
-// LTV, and the UI must present it as an estimate, not a guarantee - Zest's
-// own contract independently enforces the real limit at borrow time
-// regardless of what this shows.
+// Zest's own contract has no public read-only for the exact capacity
+// calculation (collateral-add/borrow in v0-8-market.clar) - it's private
+// and needs live Pyth Lazer price feeds, which this app doesn't push. But
+// the LTV itself IS a real on-chain read (v0-egroup.resolve), so only the
+// price side of this estimate is approximated - the LTV is not.
+//
+// This computes a clearly labeled ESTIMATE from a public BTC/USD price and
+// the real, currently-live LTV-BORROW for a stBTC-only position, and the UI
+// must present it as an estimate, not a guarantee - Zest's own contract
+// independently enforces the real limit (using its own live price feed) at
+// borrow time regardless of what this shows.
 
-// Conservative placeholder: Zest's own docs cite up to ~70% LTV for sBTC
-// and ~50% for other assets; stBTC's specific egroup LTV isn't confirmed,
-// so this assumes the more conservative end rather than overstate capacity.
-export const ESTIMATED_LTV = 0.5;
+const ZEST_EGROUP = "v0-egroup" as const;
+// bit 13 - the zstBTC asset id (see ZEST_ZSTBTC_ASSET_ID above). A mask of
+// exactly this one bit is the egroup for "stBTC is the only collateral
+// posted", which is the only position shape the Borrow page ever creates.
+const ZSTBTC_ONLY_EGROUP_MASK = 1 << 13;
+
+// Fallback used only if the live v0-egroup read fails (e.g. network blip) -
+// deliberately the conservative end of what Zest's own docs cite (~70% LTV
+// for sBTC, ~50% for other assets) rather than overstate capacity when the
+// real number can't be reached.
+const FALLBACK_LTV = 0.5;
+
+/**
+ * Reads stBTC's real LTV-BORROW straight from Zest's own v0-egroup contract
+ * (confirmed live on mainnet: 8000 bps = 80%, as of this writing) rather
+ * than assume a placeholder. LTV-BORROW comes back as a big-endian buff
+ * scaled to Zest's BPS constant (10000) - stacks.js represents a BufferCV's
+ * `value` as a plain hex string with no `0x` prefix (verified against
+ * @stacks/transactions' own bufferCV encoder), so a base-16 parse of that
+ * string is the same big-endian-bytes-to-uint conversion v0-8-market.clar's
+ * own (private, otherwise uncallable) `buff-to-uint-be` does internally.
+ */
+export async function getStbtcLtv(senderAddress: string): Promise<number> {
+  try {
+    const cv = await fetchCallReadOnlyFunction({
+      contractAddress: ZEST_DEPLOYER,
+      contractName: ZEST_EGROUP,
+      functionName: "resolve",
+      functionArgs: [Cl.uint(ZSTBTC_ONLY_EGROUP_MASK)],
+      senderAddress,
+      network: NETWORK,
+    });
+    if (cv.type !== "ok") return FALLBACK_LTV;
+    const group = cv.value;
+    if (group.type !== "tuple") return FALLBACK_LTV;
+    const ltvBuff = group.value["LTV-BORROW"];
+    if (ltvBuff?.type !== "buffer") return FALLBACK_LTV;
+    const bps = parseInt(ltvBuff.value, 16);
+    if (!Number.isFinite(bps) || bps <= 0) return FALLBACK_LTV;
+    return bps / 10_000;
+  } catch {
+    return FALLBACK_LTV;
+  }
+}
 
 export async function getBtcUsdPrice(): Promise<number> {
   const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
@@ -246,10 +296,10 @@ export async function getBtcUsdPrice(): Promise<number> {
   return data.bitcoin.usd;
 }
 
-/** stBTC amount (sats) + BTC/USD price -> an estimated USDC borrow limit, in whole USDC. */
-export function estimateBorrowableUsdc(stbtcSats: bigint, btcUsdPrice: number): number {
+/** stBTC amount (sats) + BTC/USD price + real LTV (0..1, from getStbtcLtv) -> an estimated USDCx borrow limit, in whole USDCx. */
+export function estimateBorrowableUsdc(stbtcSats: bigint, btcUsdPrice: number, ltv: number): number {
   const stbtcBtc = Number(stbtcSats) / 100_000_000;
-  return stbtcBtc * btcUsdPrice * ESTIMATED_LTV;
+  return stbtcBtc * btcUsdPrice * ltv;
 }
 
 // --- real, on-chain supplied-collateral read ------------------------------

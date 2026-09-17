@@ -18,7 +18,11 @@
 (define-constant ERR-LIST-FULL (err u701))
 
 (define-constant MAX-PARTICIPANTS u200)
-;; ~1 day at ~10min/block
+;; ~1 day of burn (Bitcoin) blocks at ~10min/block - measured the same way
+;; ve-stx-lock.clar counts lock durations, and for the same reason: this
+;; contract's own reward source (StackingDAO's Dual Stacking) is Bitcoin-
+;; paced, so its own clock should be too. See ve-stx-lock.clar's header for
+;; the fuller reasoning and the block-time numbers behind "~10min/block".
 (define-constant EPOCH-LENGTH u144)
 
 ;; data vars
@@ -29,6 +33,20 @@
 ;; (dashboard/debugging), not required for the next call's correctness.
 (define-data-var epoch-total-weight uint u0)
 (define-data-var epoch-total-claimed uint u0)
+
+;; data maps
+
+;; Cumulative sBTC ever paid to `owner` by credit-share, across every epoch.
+;; This exists because the payout itself lands as plain sBTC in the user's
+;; own wallet (see credit-share) - sBTC is fungible, so a wallet-balance
+;; read can never afterward isolate "how much of this did the boost pay me"
+;; from any other sBTC the user holds or later spends/moves. This map is
+;; the only way that figure stays readable on-chain, permanently, no matter
+;; what the user does with the sBTC afterward.
+(define-map lifetime-boost-paid
+  { owner: principal }
+  { amount: uint }
+)
 
 ;; public functions
 
@@ -60,7 +78,7 @@
     (asserts!
       (or
         (is-eq (var-get last-epoch-close-height) u0)
-        (>= stacks-block-height (+ (var-get last-epoch-close-height) EPOCH-LENGTH))
+        (>= burn-block-height (+ (var-get last-epoch-close-height) EPOCH-LENGTH))
       )
       ERR-TOO-SOON
     )
@@ -71,7 +89,7 @@
       )
       (var-set epoch-total-weight total-weight)
       (var-set epoch-total-claimed claim-amount)
-      (var-set last-epoch-close-height stacks-block-height)
+      (var-set last-epoch-close-height burn-block-height)
       (if (or (is-eq claim-amount u0) (is-eq total-weight u0))
         (ok u0)
         (begin
@@ -92,6 +110,13 @@
 
 (define-read-only (get-last-epoch-close-height)
   (var-get last-epoch-close-height)
+)
+
+;; Total sBTC this principal has ever been paid by the boost, across every
+;; epoch - see lifetime-boost-paid's own comment for why this can't be
+;; recovered from a wallet balance after the fact.
+(define-read-only (get-lifetime-boost-paid (who principal))
+  (default-to u0 (get amount (map-get? lifetime-boost-paid { owner: who })))
 )
 
 (define-read-only (get-epoch-stats)
@@ -129,6 +154,9 @@
       (let ((share (/ (* (var-get epoch-total-claimed) w) total-w)))
         (begin
           (unwrap-panic (as-contract (contract-call? .mock-sbtc transfer share tx-sender who none)))
+          (map-set lifetime-boost-paid { owner: who } {
+            amount: (+ share (default-to u0 (get amount (map-get? lifetime-boost-paid { owner: who })))),
+          })
           true
         )
       )

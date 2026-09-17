@@ -89,18 +89,13 @@ plan:
             path: contracts/bitmax-boost-distributor.clar
             clarity-version: 3
         - emulated-contract-publish:
-            contract-name: mock-stbtc
-            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/mock-stbtc.clar
-            clarity-version: 3
-        - emulated-contract-publish:
-            contract-name: mock-stacking-dao
-            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/mock-stacking-dao.clar
-            clarity-version: 3
-        - emulated-contract-publish:
             contract-name: bitmax-vault
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
             path: contracts/bitmax-vault.clar
+            clarity-version: 3
+        - emulated-contract-publish:
+            contract-name: mock-stbtc
+            emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+            path: contracts/mock-stbtc.clar
             clarity-version: 3
       epoch: "3.2"

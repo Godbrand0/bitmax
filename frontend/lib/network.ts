@@ -31,8 +31,19 @@ export const CONTRACT_DEPLOYER =
   process.env.NEXT_PUBLIC_CONTRACT_DEPLOYER ??
   "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
 
+/** Explorer link for a transaction id - no public explorer exists for local devnet. */
+export function getExplorerTxUrl(txId: string): string | null {
+  if (NETWORK_NAME === "devnet") return null;
+  return `https://explorer.hiro.so/txid/${txId}?chain=${NETWORK_NAME}`;
+}
+
 export const CONTRACTS = {
   vault: "bitmax-vault",
   veLock: "ve-stx-lock",
   distributor: "bitmax-boost-distributor",
+  // Devnet/testnet stand-in for StackingDAO's real Dual Stacking pool - see
+  // that contract's own header. Read directly by the frontend only for a
+  // pending withdrawal's cooldown height (lib/vault.ts's
+  // getPendingWithdrawal); every write still goes through ve-stx-lock.
+  stakingPool: "mock-ststxbtc-pool",
 } as const;
