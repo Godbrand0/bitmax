@@ -19,7 +19,7 @@ const senderKey = requireEnv("KEEPER_PRIVATE_KEY");
 const client = new StacksClient(apiUrl);
 
 async function tick(): Promise<boolean> {
-  const currentHeight = BigInt(await client.getBlockHeight());
+  const currentHeight = BigInt(await client.getBurnBlockHeight());
   const lastCloseHeight = await client.callReadOnlyUint(
     contractAddress,
     distributorContractName,
