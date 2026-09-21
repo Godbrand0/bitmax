@@ -8,11 +8,17 @@ import { cvToValue, hexToCV } from "@stacks/transactions";
 export class StacksClient {
   constructor(private readonly baseUrl: string) {}
 
-  async getBlockHeight(): Promise<number> {
+  // bitmax-boost-distributor.clar's EPOCH-LENGTH counts burn-block-height
+  // (Bitcoin blocks, ~10min each) - same clock as ve-stx-lock.clar's lock
+  // durations, and for the same reason (see that contract's header).
+  // stacks_tip_height is the wrong field: Stacks blocks run ~11.8s on
+  // mainnet, which would make this poll close-epoch roughly 50x more often
+  // than EPOCH-LENGTH intends.
+  async getBurnBlockHeight(): Promise<number> {
     const res = await fetch(`${this.baseUrl}/v2/info`);
     if (!res.ok) throw new Error(`GET /v2/info failed: ${res.status}`);
-    const info = (await res.json()) as { stacks_tip_height: number };
-    return info.stacks_tip_height;
+    const info = (await res.json()) as { burn_block_height: number };
+    return info.burn_block_height;
   }
 
   /** Calls a read-only function that returns a plain `uint` (not wrapped in a `(response ...)`). */

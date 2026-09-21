@@ -1,0 +1,53 @@
+---
+id: 0
+name: Testnet deployment
+network: testnet
+stacks-node: "https://api.testnet.hiro.so"
+bitcoin-node: "http://blockstack:blockstacksystem@bitcoind.testnet.stacks.co:18332"
+plan:
+  batches:
+    - id: 0
+      transactions:
+        - contract-publish:
+            contract-name: sip-010-trait
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 5830
+            path: contracts/sip-010-trait.clar
+            anchor-block-only: true
+            clarity-version: 3
+        - contract-publish:
+            contract-name: ve-stx-lock
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 151120
+            path: contracts/ve-stx-lock.clar
+            anchor-block-only: true
+            clarity-version: 3
+        - contract-publish:
+            contract-name: bitmax-boost-distributor
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 78520
+            path: contracts/bitmax-boost-distributor.clar
+            anchor-block-only: true
+            clarity-version: 3
+        - contract-publish:
+            contract-name: bitmax-vault
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 154410
+            path: contracts/bitmax-vault.clar
+            anchor-block-only: true
+            clarity-version: 3
+        - contract-publish:
+            contract-name: mock-sbtc
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 13260
+            path: contracts/mock-sbtc.clar
+            anchor-block-only: true
+            clarity-version: 3
+        - contract-publish:
+            contract-name: mock-stbtc
+            expected-sender: ST19XTHQ3SVST2NCYPTHP2W31MFDQDBFG3W5VFJ8Z
+            cost: 15920
+            path: contracts/mock-stbtc.clar
+            anchor-block-only: true
+            clarity-version: 3
+      epoch: "3.2"

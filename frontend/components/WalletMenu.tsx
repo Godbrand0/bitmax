@@ -2,33 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@/lib/wallet";
-
-function CopyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  );
-}
-
-function DisconnectIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5" />
-      <path d="M21 12H9" />
-    </svg>
-  );
-}
+import { CheckIcon, CopyIcon, DisconnectIcon, WalletIcon } from "@/components/ui/Icons";
 
 export function WalletMenu() {
   const wallet = useWallet();
@@ -63,9 +37,9 @@ export function WalletMenu() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard access can fail (permissions, insecure context) - silently
-      // no-op rather than throw, copying an address isn't critical enough
-      // to surface an error banner over.
+      // Clipboard access can fail (permissions, insecure context) - silently
+      // no-op rather than throw; copying an address isn't critical enough to
+      // surface an error banner over.
     }
   }
 
@@ -79,25 +53,53 @@ export function WalletMenu() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-muted sm:text-sm"
+        aria-haspopup="menu"
+        className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition-all duration-200 sm:text-[13px] ${
+          open
+            ? "border-brand bg-brand-soft text-brand-ink"
+            : "border-border bg-surface text-foreground hover:border-border-strong hover:bg-surface-muted"
+        }`}
       >
-        {address.slice(0, 5)}...{address.slice(-4)}
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-success" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+        </span>
+        <span className="num">
+          {address.slice(0, 5)}…{address.slice(-4)}
+        </span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 w-60 origin-top-right animate-pop-in overflow-hidden rounded-xl border border-border bg-surface shadow-lg"
+        >
+          <div className="border-b border-border bg-surface-muted px-4 py-3">
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+              <WalletIcon size={11} />
+              Connected wallet
+            </p>
+            <p className="num mt-1.5 break-all font-mono text-[11px] text-foreground-soft">
+              {address}
+            </p>
+          </div>
+
           <button
+            role="menuitem"
             onClick={handleCopy}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-foreground hover:bg-surface-muted"
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-surface-muted"
           >
-            {copied ? <CheckIcon /> : <CopyIcon />}
+            <span className={copied ? "text-success" : "text-muted"}>
+              {copied ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
+            </span>
             {copied ? "Copied!" : "Copy address"}
           </button>
           <button
+            role="menuitem"
             onClick={handleDisconnect}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-danger hover:bg-surface-muted"
+            className="flex w-full items-center gap-2.5 border-t border-border px-4 py-3 text-left text-sm text-danger transition-colors hover:bg-danger-soft"
           >
-            <DisconnectIcon />
+            <DisconnectIcon size={15} />
             Disconnect
           </button>
         </div>

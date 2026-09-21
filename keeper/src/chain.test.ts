@@ -7,24 +7,28 @@ describe("StacksClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("getBlockHeight reads stacks_tip_height from /v2/info", async () => {
+  it("getBurnBlockHeight reads burn_block_height from /v2/info", async () => {
+    // Deliberately includes both fields, like a real /v2/info response, so
+    // this test would fail if the client read stacks_tip_height instead -
+    // the two are numerically different on any real network, unlike in
+    // Clarinet's simnet where they happen to move 1:1.
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ stacks_tip_height: 12345 }),
+      json: async () => ({ stacks_tip_height: 99999, burn_block_height: 12345 }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new StacksClient("http://node.example");
-    const height = await client.getBlockHeight();
+    const height = await client.getBurnBlockHeight();
 
     expect(height).toBe(12345);
     expect(fetchMock).toHaveBeenCalledWith("http://node.example/v2/info");
   });
 
-  it("getBlockHeight throws on a non-ok response", async () => {
+  it("getBurnBlockHeight throws on a non-ok response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     const client = new StacksClient("http://node.example");
-    await expect(client.getBlockHeight()).rejects.toThrow("500");
+    await expect(client.getBurnBlockHeight()).rejects.toThrow("500");
   });
 
   it("callReadOnlyUint decodes a real Clarity-serialized uint response", async () => {

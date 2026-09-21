@@ -31,6 +31,12 @@ export const CONTRACT_DEPLOYER =
   process.env.NEXT_PUBLIC_CONTRACT_DEPLOYER ??
   "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM";
 
+/** Explorer link for a transaction id - no public explorer exists for local devnet. */
+export function getExplorerTxUrl(txId: string): string | null {
+  if (NETWORK_NAME === "devnet") return null;
+  return `https://explorer.hiro.so/txid/${txId}?chain=${NETWORK_NAME}`;
+}
+
 export const CONTRACTS = {
   vault: "bitmax-vault",
   veLock: "ve-stx-lock",

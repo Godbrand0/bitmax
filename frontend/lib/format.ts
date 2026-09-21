@@ -31,11 +31,13 @@ export function stxToUstx(stxAmount: string): bigint {
 }
 
 // Lock-duration presets, in blocks (~10 min/block, matching ve-stx-lock.clar's
-// MIN/MAX-LOCK-DURATION of ~2 weeks to ~2 years). Presented as plain time
-// spans rather than raw block counts - nobody thinks in blocks.
+// MIN/MAX-LOCK-DURATION of ~2 weeks to ~6 months). Presented as plain time
+// spans rather than raw block counts - nobody thinks in blocks. Block counts
+// use 144 blocks/day and an average 365/12-day month, the same convention
+// ve-stx-lock.clar's own constants are derived from.
 export const LOCK_DURATION_PRESETS = [
   { label: "2 weeks (shortest boost)", blocks: 2_016 },
+  { label: "1 month", blocks: 4_380 },
   { label: "3 months", blocks: 13_140 },
-  { label: "1 year", blocks: 52_560 },
-  { label: "2 years (biggest boost)", blocks: 105_120 },
+  { label: "6 months (biggest boost)", blocks: 26_280 },
 ] as const;
