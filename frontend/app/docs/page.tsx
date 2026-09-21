@@ -390,12 +390,6 @@ export default function DocsPage() {
                         purpose:
                           "Each epoch, claims the extra Dual Stacking BTC and pays it out as lockers' boost.",
                       },
-                      {
-                        name: "mock-ststxbtc-pool",
-                        principal: `${CONTRACT_DEPLOYER}.mock-ststxbtc-pool`,
-                        purpose:
-                          "Devnet/testnet stand-in for StackingDAO's stSTXbtc - pools locked STX and accrues the extra BTC that funds the boost.",
-                      },
                     ]}
                     unavailableNote={BITMAX_CONTRACTS_LIVE ? undefined : "Not a real deployment"}
                   />
@@ -441,7 +435,12 @@ export default function DocsPage() {
                         principal:
                           "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.stacking-dao-core-ststxbtc-v2",
                         purpose:
-                          "StackingDAO's Dual Stacking pool for STX - where locked STX earns the boost. mock-ststxbtc-pool stands in until it's wired up.",
+                          "StackingDAO's Dual Stacking pool for STX - where locked STX earns the boost.",
+                      },
+                      {
+                        name: "ststxbtc-tracking-v2",
+                        principal: "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststxbtc-tracking-v2",
+                        purpose: "Where bitmax-boost-distributor claims the accrued sBTC reward.",
                       },
                     ]}
                   />
@@ -474,13 +473,11 @@ export default function DocsPage() {
               </div>
 
               <p className="text-xs">
-                <code>bitmax-vault</code>&apos;s own staking calls, and <code>ve-stx-lock</code>
-                &apos;s STX pooling, currently target mock StackingDAO stand-ins on devnet/testnet,
-                not the real <code>stacking-dao-core-stbtc-v1</code> and{" "}
-                <code>stacking-dao-core-ststxbtc-v2</code> contracts above - the Borrow page&apos;s
-                stBTC balance display does read the real token contract, but the vault&apos;s
-                deposit flow and the boost&apos;s Dual Stacking pooling haven&apos;t been switched
-                over yet.
+                <code>bitmax-vault</code>&apos;s staking calls and <code>ve-stx-lock</code>&apos;s
+                STX pooling both call the real StackingDAO contracts above directly - not a
+                devnet/testnet mock. That makes both mainnet-only by construction: on any other
+                network, deposit/lock transactions will fail rather than silently succeed against
+                a stand-in.
               </p>
             </DocSection>
 

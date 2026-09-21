@@ -41,9 +41,4 @@ export const CONTRACTS = {
   vault: "bitmax-vault",
   veLock: "ve-stx-lock",
   distributor: "bitmax-boost-distributor",
-  // Devnet/testnet stand-in for StackingDAO's real Dual Stacking pool - see
-  // that contract's own header. Read directly by the frontend only for a
-  // pending withdrawal's cooldown height (lib/vault.ts's
-  // getPendingWithdrawal); every write still goes through ve-stx-lock.
-  stakingPool: "mock-ststxbtc-pool",
 } as const;

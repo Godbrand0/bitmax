@@ -195,8 +195,8 @@ targets a local stand-in.
 | sBTC peg-in / peg-out | real | Peg-in happens before BitMax, via sBTC's own bridge. Peg-out is built (`lib/sbtc.ts`) but unused by the UI. |
 | Vault staking (sBTC → stBTC) | real | `bitmax-vault` calls StackingDAO's real `stacking-dao-core-stbtc-v1` directly, mainnet-only by construction. |
 | Vault balance display | real | Computed live from the real exchange rate — the fix that makes "watch it grow" true. |
-| Boost pool (STX → Dual Stacking) | pending | `ve-stx-lock` still pools into a local stand-in, not `stacking-dao-core-ststxbtc-v2`. |
-| Boost payout + lifetime tracking | real | Real Clarity logic and a real on-chain ledger; only the reward source above is pending. |
+| Boost pool (STX → Dual Stacking) | real | `ve-stx-lock` calls StackingDAO's real `stacking-dao-core-ststxbtc-v2` directly, mainnet-only by construction. Note: as of this writing, StackingDAO has deposits, init-withdraw, and withdraw all administratively shut down on this contract (confirmed via live reads) — almost certainly a maintenance/migration pause on their side, not permanent, but it means this leg can't be exercised end-to-end on mainnet until they re-enable it. |
+| Boost payout + lifetime tracking | real | `bitmax-boost-distributor` claims the real sBTC Dual Stacking reward via `ststxbtc-tracking-v2.claim-pending-rewards` and pays it out on-chain. |
 | Borrow (Zest) | real | Fully live, zero BitMax contract in the path, verified against deployed source. |
 
 ---

@@ -20,14 +20,8 @@ path = 'contracts/mock-sbtc.clar'
 clarity_version = 3
 epoch = 'latest'
 
-
 [contracts.mock-stbtc]
 path = 'contracts/mock-stbtc.clar'
-clarity_version = 3
-epoch = 'latest'
-
-[contracts.mock-ststxbtc-pool]
-path = 'contracts/mock-ststxbtc-pool.clar'
 clarity_version = 3
 epoch = 'latest'
 

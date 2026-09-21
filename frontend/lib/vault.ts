@@ -31,12 +31,37 @@ const STACKINGDAO_STBTC_DATA_MAINNET = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG
 const STACKINGDAO_STBTC_WITHDRAW_DATA_MAINNET =
   "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.withdraw-data-stbtc";
 
+// StackingDAO's real Dual Stacking product - what ve-stx-lock.clar calls
+// directly now (see that contract's own header). Same mainnet-only
+// constraint as the stBTC leg above: a relative `.foo` contract-call can
+// only ever resolve within the same deployer, so there's no
+// environment-conditional devnet path here either.
+const STACKINGDAO_STSTXBTC_CORE_MAINNET =
+  "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.stacking-dao-core-ststxbtc-v2";
+const STACKINGDAO_STSTXBTC_DATA_MAINNET =
+  "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststxbtc-data-v2";
+const STACKINGDAO_STSTXBTC_TRACKING_MAINNET =
+  "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststxbtc-tracking-v2";
+
 export const VAULT_AVAILABLE = NETWORK_NAME === "mainnet";
+// ve-stx-lock's Dual Stacking leg is a separate real StackingDAO contract
+// from the vault's stBTC leg, but gated by the exact same constraint -
+// kept as its own export so call sites read as "what needs mainnet" per
+// feature, not because the underlying check differs today.
+export const LOCK_AVAILABLE = NETWORK_NAME === "mainnet";
 
 function requireVaultAvailable() {
   if (!VAULT_AVAILABLE) {
     throw new Error(
       "The vault talks directly to StackingDAO's real mainnet contracts, so it only works once this app is live on Stacks mainnet."
+    );
+  }
+}
+
+function requireLockAvailable() {
+  if (!LOCK_AVAILABLE) {
+    throw new Error(
+      "Locking talks directly to StackingDAO's real mainnet Dual Stacking contracts, so it only works once this app is live on Stacks mainnet."
     );
   }
 }
@@ -119,11 +144,23 @@ export async function claimRedeemToSbtc() {
   });
 }
 
+/**
+ * Locks `amountUstx` STX until `unlockHeight`, pooling it into StackingDAO's
+ * real Dual Stacking contract (stacking-dao-core-ststxbtc-v2) via
+ * ve-stx-lock.clar. No slippage/min-out param is needed here (unlike
+ * depositSbtc) - stSTXbtc mints strictly 1:1 with STX, see
+ * ve-stx-lock.clar's header.
+ */
 export async function lockStx(amountUstx: bigint, unlockHeight: bigint) {
+  requireLockAvailable();
   return submitSponsored({
     contract: contract(CONTRACTS.veLock),
     functionName: "lock-stx",
-    functionArgs: [Cl.uint(amountUstx), Cl.uint(unlockHeight)],
+    functionArgs: [
+      Cl.uint(amountUstx),
+      Cl.uint(unlockHeight),
+      Cl.principal(STACKINGDAO_STSTXBTC_CORE_MAINNET),
+    ],
   });
 }
 
@@ -133,18 +170,20 @@ export async function lockStx(amountUstx: bigint, unlockHeight: bigint) {
 // has passed; it clears the lock and starts a *second*, separate cooldown.
 // claimUnlock only succeeds once that second cooldown has also passed.
 export async function requestUnlock() {
+  requireLockAvailable();
   return submitSponsored({
     contract: contract(CONTRACTS.veLock),
     functionName: "request-unlock",
-    functionArgs: [],
+    functionArgs: [Cl.principal(STACKINGDAO_STSTXBTC_CORE_MAINNET)],
   });
 }
 
 export async function claimUnlock() {
+  requireLockAvailable();
   return submitSponsored({
     contract: contract(CONTRACTS.veLock),
     functionName: "claim-unlock",
-    functionArgs: [],
+    functionArgs: [Cl.principal(STACKINGDAO_STSTXBTC_CORE_MAINNET)],
   });
 }
 
@@ -342,10 +381,10 @@ export async function getLock(address: string) {
 /**
  * A withdrawal that's been requested (past the lock's own unlock-height)
  * but not yet claimable - see ve-stx-lock.clar's header for the two-step
- * exit this models. `claimableAtHeight` comes from the pool contract, not
- * ve-stx-lock's own map: ve-stx-lock only tracks *that* a withdrawal is
- * pending, the pool is what actually owns the cooldown timing (mirroring
- * how the real StackingDAO integration will work later too).
+ * exit this models. `claimableAtHeight` comes live from StackingDAO's real
+ * ststxbtc-data-v2, not cached in ve-stx-lock's own map - the same
+ * live-read-over-stale-cache pattern getPendingSbtcWithdrawal already uses
+ * for the vault's stBTC leg.
  */
 export async function getPendingWithdrawal(
   address: string
@@ -362,24 +401,45 @@ export async function getPendingWithdrawal(
   const tuple = cv.value;
   if (tuple.type !== "tuple") return null;
   const amount = readUint(tuple.value.amount);
-  const ticketId = readUint(tuple.value["ticket-id"]);
+  const nftId = readUint(tuple.value["nft-id"]);
 
+  const [contractAddress, contractName] = STACKINGDAO_STSTXBTC_DATA_MAINNET.split(".");
   const ticketCv = await fetchCallReadOnlyFunction({
-    contractAddress: CONTRACT_DEPLOYER,
-    contractName: CONTRACTS.stakingPool,
-    functionName: "get-withdrawal-ticket",
-    functionArgs: [Cl.uint(ticketId)],
+    contractAddress,
+    contractName,
+    functionName: "get-withdrawals-by-nft",
+    functionArgs: [Cl.uint(nftId)],
     senderAddress: address,
     network: NETWORK,
   });
-  if (ticketCv.type !== "some" || ticketCv.value.type !== "tuple") {
-    // Shouldn't happen (ve-stx-lock and the pool should always agree on
-    // ticket existence), but degrade to "amount known, timing unknown"
-    // rather than throw - the UI can still show something useful.
-    return { amount, claimableAtHeight: 0n };
-  }
+  if (ticketCv.type !== "tuple") return { amount, claimableAtHeight: 0n };
   return {
     amount,
-    claimableAtHeight: readUint(ticketCv.value.value["unlock-height"]),
+    claimableAtHeight: readUint(ticketCv.value["unlock-burn-height"]),
   };
+}
+
+/**
+ * The real sBTC Dual Stacking reward currently pending for ve-stx-lock's
+ * pooled stSTXbtc holding - not yet pulled into BitMax by a keeper's
+ * close-epoch call. Read directly from StackingDAO's own ststxbtc-tracking-v2
+ * (permissionless, read-only) rather than added to ve-stx-lock.clar itself:
+ * a Clarity read-only function can't make this external call (same
+ * constraint bitmax-vault.clar's get-balance runs into - see that
+ * function's own comment).
+ */
+export async function getPendingBoostReward(): Promise<bigint> {
+  if (!LOCK_AVAILABLE) return 0n;
+  const veLockPrincipal = contract(CONTRACTS.veLock);
+  const [contractAddress, contractName] = STACKINGDAO_STSTXBTC_TRACKING_MAINNET.split(".");
+  const cv = await fetchCallReadOnlyFunction({
+    contractAddress,
+    contractName,
+    functionName: "get-pending-rewards",
+    functionArgs: [Cl.principal(veLockPrincipal), Cl.principal(veLockPrincipal)],
+    senderAddress: CONTRACT_DEPLOYER,
+    network: NETWORK,
+  });
+  if (cv.type !== "ok") return 0n;
+  return readUint(cv.value);
 }

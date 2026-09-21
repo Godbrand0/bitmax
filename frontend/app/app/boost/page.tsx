@@ -9,13 +9,14 @@ import {
   getLock,
   getLockWeight,
   getPendingWithdrawal,
+  LOCK_AVAILABLE,
   lockStx,
   registerForBoost,
   requestUnlock,
 } from "@/lib/vault";
 import { getBurnBlockHeight } from "@/lib/chain";
 import { LOCK_DURATION_PRESETS, satsToBtc, stxToUstx } from "@/lib/format";
-import { CONTRACT_DEPLOYER, CONTRACTS } from "@/lib/network";
+import { CONTRACT_DEPLOYER, CONTRACTS, NETWORK_NAME } from "@/lib/network";
 import { getContractCallHistory, parseUintRepr, type HistoryEntry } from "@/lib/history";
 import {
   AmountInput,
@@ -267,6 +268,24 @@ export default function BoostPage() {
             </div>
           </Card>
 
+          {!LOCK_AVAILABLE ? (
+            <div className="mx-auto max-w-lg rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-warning-soft text-warning">
+                <BoostIcon size={24} />
+              </span>
+              <h2 className="mt-5 text-lg font-semibold tracking-tight text-foreground">
+                Boosting unlocks on mainnet
+              </h2>
+              <p className="mt-2.5 text-sm leading-relaxed text-muted">
+                Locking pools your STX directly into StackingDAO&apos;s real mainnet Dual Stacking
+                contract - no devnet/testnet stand-in. StackingDAO only runs on Stacks{" "}
+                <strong className="text-foreground">mainnet</strong>, and this app is currently
+                pointed at <strong className="capitalize text-foreground">{NETWORK_NAME}</strong>.
+                Once BitMax is live on mainnet this page starts working immediately - nothing else
+                needs to change.
+              </p>
+            </div>
+          ) : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1.15fr]">
             {/* ── Current position ── */}
             <Card title="Your current boost" icon={<BoostIcon size={16} />}>
@@ -511,6 +530,7 @@ export default function BoostPage() {
               </Card>
             )}
           </div>
+          )}
 
           {message && <Status {...message} />}
 
